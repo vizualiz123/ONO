@@ -480,7 +480,14 @@ internal static class UsdWpfMeshLoader
             var brush = new ImageBrush(bitmap)
             {
                 Stretch = Stretch.Fill,
+                AlignmentX = AlignmentX.Center,
+                AlignmentY = AlignmentY.Center,
+                TileMode = TileMode.None,
             };
+            RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.HighQuality);
+            RenderOptions.SetCachingHint(brush, CachingHint.Cache);
+            RenderOptions.SetCacheInvalidationThresholdMinimum(brush, 0.5);
+            RenderOptions.SetCacheInvalidationThresholdMaximum(brush, 2.0);
             brush.Freeze();
 
             var material = new DiffuseMaterial(brush);
@@ -495,13 +502,8 @@ internal static class UsdWpfMeshLoader
 
     private static string? ResolveBaseColorTexturePath(string usdPath, string? assetsDirectory, UsdPrim prim)
     {
-        if (string.IsNullOrWhiteSpace(assetsDirectory))
-        {
-            return null;
-        }
-
-        var texturesRoot = Path.Combine(assetsDirectory, "Materials", "Textures");
-        if (!Directory.Exists(texturesRoot))
+        var texturesRoot = ResolveTexturesRootFromUsdPath(usdPath, assetsDirectory);
+        if (string.IsNullOrWhiteSpace(texturesRoot) || !Directory.Exists(texturesRoot))
         {
             return null;
         }
@@ -535,6 +537,32 @@ internal static class UsdWpfMeshLoader
             {
                 return fallback;
             }
+        }
+
+        return null;
+    }
+
+    private static string? ResolveTexturesRootFromUsdPath(string usdPath, string? assetsDirectory)
+    {
+        if (!string.IsNullOrWhiteSpace(assetsDirectory))
+        {
+            var texturesRoot = Path.Combine(assetsDirectory, "Materials", "Textures");
+            if (Directory.Exists(texturesRoot))
+            {
+                return texturesRoot;
+            }
+        }
+
+        var current = new DirectoryInfo(Path.GetDirectoryName(usdPath) ?? string.Empty);
+        while (current is not null)
+        {
+            var localTexturesRoot = Path.Combine(current.FullName, "Materials", "Textures");
+            if (Directory.Exists(localTexturesRoot))
+            {
+                return localTexturesRoot;
+            }
+
+            current = current.Parent;
         }
 
         return null;
@@ -652,6 +680,14 @@ internal static class UsdWpfMeshLoader
         if (name.Contains("CC_Base_Body", StringComparison.OrdinalIgnoreCase))
         {
             yield return "Std_Skin_Body";
+        }
+
+        if (name.Contains("CC_Game_Body", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return "CC_Game_Body_Ga_Skin_Body";
+            yield return "Ga_Skin_Body";
+            yield return "Std_Skin_Body";
+            yield return "Std_Skin_Head";
         }
 
         if (name.Contains("CC_Base_Head", StringComparison.OrdinalIgnoreCase))

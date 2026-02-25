@@ -1,0 +1,42 @@
+#usda 1.0
+(
+    defaultPrim = "Avatar"
+)
+
+def Scope "Avatar"
+{
+    def Scope "Looks"
+    {
+        def Material "Avatar_Face_v2"
+        {
+            token outputs:surface.connect = </Avatar/Looks/Avatar_Face_v2/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.56, 0.64, 0.78)
+                float inputs:roughness = 0.38
+                float inputs:metallic = 0.04
+                color3f inputs:specularColor = (0.10, 0.16, 0.24)
+                color3f inputs:emissiveColor = (0.015, 0.022, 0.040)
+                token outputs:surface
+            }
+        }
+
+        def Material "Avatar_Eyes_Emission_v2"
+        {
+            token outputs:surface.connect = </Avatar/Looks/Avatar_Eyes_Emission_v2/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.01, 0.02, 0.03)
+                float inputs:roughness = 0.08
+                float inputs:metallic = 0.0
+                float inputs:opacity = 1.0
+                color3f inputs:emissiveColor = (0.06, 0.95, 1.20)
+                token outputs:surface
+            }
+        }
+    }
+}

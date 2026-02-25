@@ -1,0 +1,12 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    startTimeCode = 0
+    endTimeCode = 3520
+    timeCodesPerSecond = 24
+    framesPerSecond = 24
+    subLayers = [
+        @../overrides/avatar_replace_face_v2.usda@,
+        @../_links/Characters_NVD_10012/Assets/Characters/Reallusion/Audio2Face_Preset_Examples/Debra_A2F_CC_GameBase/Debra_Mark_fitted_mesh.usd@
+    ]
+)

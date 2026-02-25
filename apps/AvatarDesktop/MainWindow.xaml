@@ -134,6 +134,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <Border x:Name="ConnectionStatusBadge"
@@ -160,15 +161,27 @@
                             Margin="0,0,8,0"
                             Padding="12,6"
                             Click="WidgetModeButton_Click"
-                            Content="Start Widget" />
+                            Content="Start Widget"
+                            Visibility="Collapsed"
+                            IsEnabled="False" />
                     <Button x:Name="ChatGptVoiceButton"
                             Grid.Column="4"
                             Margin="0,0,8,0"
                             Padding="12,6"
                             Click="ChatGptVoiceButton_Click"
                             Content="ChatGPT Voice..." />
+                    <ComboBox x:Name="AvatarPresetComboBox"
+                              Grid.Column="5"
+                              Width="220"
+                              Margin="0,0,8,0"
+                              VerticalContentAlignment="Center"
+                              IsEnabled="False"
+                              SelectedIndex="0"
+                              SelectionChanged="AvatarPresetComboBox_SelectionChanged">
+                        <ComboBoxItem Content="Avatar: Face_Futuristic_v2 (face-only)" />
+                    </ComboBox>
                     <Button x:Name="LoadUsdHookButton"
-                            Grid.Column="5"
+                            Grid.Column="6"
                             Padding="12,6"
                             Click="LoadUsdHookButton_Click"
                             Content="Reload Avatar USD" />

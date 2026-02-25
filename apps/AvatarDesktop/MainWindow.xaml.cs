@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -32,6 +33,7 @@ public partial class MainWindow : Window
     private bool _isBusy;
     private string _currentAvatarUsdPath = string.Empty;
     private bool _rendererPlaceholderNoticeLogged;
+    private static readonly bool WidgetMirrorEnabled = false;
 
     public MainWindow()
     {
@@ -139,8 +141,25 @@ public partial class MainWindow : Window
         ReloadAvatarUsdSelection(logSource: "Manual reload");
     }
 
+    private void AvatarPresetComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        ReloadAvatarUsdSelection(logSource: "Preset changed");
+    }
+
     private void WidgetModeButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!WidgetMirrorEnabled)
+        {
+            AddLog("[Widget] Disabled: single-avatar mode keeps only the main face visible.");
+            CloseWidgetWindow();
+            return;
+        }
+
         if (_widgetWindow is not null)
         {
             CloseWidgetWindow();
@@ -395,6 +414,7 @@ public partial class MainWindow : Window
         WidgetModeButton.IsEnabled = !isBusy;
         ChatGptVoiceButton.IsEnabled = !isBusy;
         LoadUsdHookButton.IsEnabled = !isBusy;
+        AvatarPresetComboBox.IsEnabled = !isBusy;
         OfflineDemoModeCheckBox.IsEnabled = !isBusy;
     }
 
@@ -417,6 +437,11 @@ public partial class MainWindow : Window
 
     private void OpenWidgetWindow()
     {
+        if (!WidgetMirrorEnabled)
+        {
+            return;
+        }
+
         if (_widgetWindow is not null)
         {
             _widgetWindow.Activate();
@@ -664,14 +689,20 @@ public partial class MainWindow : Window
 
     private void ReloadAvatarUsdSelection(string logSource)
     {
-        var avatarUsdPath = ResolveAvatarUsdPath();
+        var avatarUsdPath = ResolveSelectedAvatarUsdPath();
         _currentAvatarUsdPath = avatarUsdPath;
 
         _avatarRenderer.LoadUsd(avatarUsdPath);
+        if (_widgetRenderer is not null)
+        {
+            _widgetRenderer.LoadUsd(avatarUsdPath);
+            _widgetRenderer.SetAnimation(GetAnimationNameForState(_animationController.State));
+        }
+
         UpdateRendererInfoText(avatarUsdPath);
 
         var usdKind = DetectUsdContainerKind(avatarUsdPath);
-        AddLog($"[Renderer] {logSource}: selected avatar USD '{avatarUsdPath}' ({usdKind}).");
+        AddLog($"[Renderer] {logSource}: {GetSelectedAvatarPresetLabel()} -> '{avatarUsdPath}' ({usdKind}).");
 
         if (!_rendererPlaceholderNoticeLogged)
         {
@@ -684,11 +715,32 @@ public partial class MainWindow : Window
     {
         if (string.IsNullOrWhiteSpace(_currentAvatarUsdPath))
         {
-            _currentAvatarUsdPath = ResolveAvatarUsdPath();
+            _currentAvatarUsdPath = ResolveSelectedAvatarUsdPath();
             UpdateRendererInfoText(_currentAvatarUsdPath);
         }
 
         return _currentAvatarUsdPath;
+    }
+
+    private string ResolveSelectedAvatarUsdPath()
+    {
+        return ResolveAvatarUsdPathForPreset(GetSelectedAvatarPresetIndex()) ?? ResolveAvatarUsdPath();
+    }
+
+    private int GetSelectedAvatarPresetIndex()
+    {
+        // UI is locked to a single face-only preset.
+        return 0;
+    }
+
+    private string GetSelectedAvatarPresetLabel()
+    {
+        if (AvatarPresetComboBox?.SelectedItem is ComboBoxItem item)
+        {
+            return item.Content?.ToString() ?? "Avatar";
+        }
+
+        return "Avatar: Auto (smart)";
     }
 
     private void UpdateRendererInfoText(string usdPath)
@@ -710,46 +762,271 @@ public partial class MainWindow : Window
         RendererInfoTextBlock.ToolTip = usdPath;
     }
 
+    private static string? ResolveAvatarUsdPathForPreset(int presetIndex)
+    {
+        return presetIndex switch
+        {
+            0 => ResolveFaceOnlyStageUsdPath() ?? ResolveAvatarPresetByRelativeCandidates(
+                Path.Combine("Audio2Face_Preset_Examples", "Debra_A2F_CC_GameBase", "Debra_Mark_fitted_mesh.usd"),
+                Path.Combine("Audio2Face_Preset_Examples", "Debra_A2F_CC_GameBase", "Debra_Mark_transferred.usd"),
+                Path.Combine("Audio2Face_Preset_Examples", "Debra_A2F_CC_GameBase", "Debra_Mark_start.usd"),
+                Path.Combine("Debra", "Props", "Debra.usd"),
+                Path.Combine("Debra", "Debra.usd")),
+            2 => ResolveAvatarPresetByRelativeCandidates(
+                Path.Combine("Debra", "Props", "Debra.usd"),
+                Path.Combine("Debra", "Debra.usd")),
+            3 => ResolveAvatarPresetByRelativeCandidates(
+                Path.Combine("Worker", "Props", "Worker.usd"),
+                Path.Combine("Worker", "Worker.usd")),
+            4 => ResolveAvatarPresetByRelativeCandidates(
+                Path.Combine("Orc", "Props", "Orc.usd"),
+                Path.Combine("Orc", "Orc.usd")),
+            _ => null // Auto mode handled by ResolveAvatarUsdPath()
+        };
+    }
+
+    private static string? ResolveFaceOnlyStageUsdPath()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            var candidate = Path.Combine(current.FullName, "usd", "stages", "main_faceonly_v2.usda");
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            current = current.Parent;
+        }
+
+        return null;
+    }
+
+    private static string? ResolveAvatarPresetByRelativeCandidates(params string[] relativeCandidates)
+    {
+        if (relativeCandidates is null || relativeCandidates.Length == 0)
+        {
+            return null;
+        }
+
+        var searchRoots = ResolveAvatarSearchRoots();
+        foreach (var root in searchRoots)
+        {
+            foreach (var relativePath in relativeCandidates)
+            {
+                var candidate = Path.Combine(root, relativePath);
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
     private static string ResolveAvatarUsdPath()
     {
+        if (TryResolveAvatarUsdOverride(out var overrideUsdPath))
+        {
+            return overrideUsdPath;
+        }
+
+        var searchRoots = ResolveAvatarSearchRoots();
+        var explicitTopLevelUsd = ResolveExplicitTopLevelAvatarUsd(searchRoots);
+        if (!string.IsNullOrWhiteSpace(explicitTopLevelUsd))
+        {
+            return explicitTopLevelUsd;
+        }
+
+        var curatedFaceUsd = ResolveCuratedFaceDefaultUsd(searchRoots);
+        if (!string.IsNullOrWhiteSpace(curatedFaceUsd))
+        {
+            return curatedFaceUsd;
+        }
+
+        var candidates = searchRoots
+            .SelectMany(root => EnumerateUsdFilesSafe(root).Select(path => new
+            {
+                Root = root,
+                File = new FileInfo(path)
+            }))
+            .Where(static x => x.File.Exists)
+            .Select(x => new
+            {
+                x.File,
+                Score = ScoreAvatarUsdCandidate(x.Root, x.File)
+            })
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.File.FullName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (candidates.Count > 0)
+        {
+            return candidates[0].File.FullName;
+        }
+
         var assetsDirectory = ResolveAssetsDirectory();
         if (!string.IsNullOrWhiteSpace(assetsDirectory))
         {
-            foreach (var explicitName in new[]
-                     {
-                         "avatar.usdz", "avatar.usdc", "avatar.usda", "avatar.usd",
-                         "character.usdz", "character.usdc", "character.usda", "character.usd"
-                     })
-            {
-                var explicitCandidate = Path.Combine(assetsDirectory, explicitName);
-                if (File.Exists(explicitCandidate))
-                {
-                    return explicitCandidate;
-                }
-            }
-
-            var candidates = new[] { "*.usd", "*.usda", "*.usdc", "*.usdz" }
-                .SelectMany(pattern => Directory.EnumerateFiles(assetsDirectory, pattern, SearchOption.AllDirectories))
-                .Select(path => new FileInfo(path))
-                .Where(static file => file.Exists)
-                .Select(file => new
-                {
-                    File = file,
-                    Score = ScoreAvatarUsdCandidate(assetsDirectory, file)
-                })
-                .OrderByDescending(x => x.Score)
-                .ThenBy(x => x.File.FullName, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            if (candidates.Count > 0)
-            {
-                return candidates[0].File.FullName;
-            }
-
             return Path.Combine(assetsDirectory, "avatar_placeholder.usd");
         }
 
         return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "assets", "avatar_placeholder.usd"));
+    }
+
+    private static bool TryResolveAvatarUsdOverride(out string usdPath)
+    {
+        usdPath = string.Empty;
+
+        var raw = Environment.GetEnvironmentVariable("AVATAR_USD_PATH");
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        var candidate = raw.Trim().Trim('"');
+        if (File.Exists(candidate))
+        {
+            usdPath = Path.GetFullPath(candidate);
+            return true;
+        }
+
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            var combined = Path.GetFullPath(Path.Combine(current.FullName, candidate));
+            if (File.Exists(combined))
+            {
+                usdPath = combined;
+                return true;
+            }
+
+            current = current.Parent;
+        }
+
+        return false;
+    }
+
+    private static IReadOnlyList<string> ResolveAvatarSearchRoots()
+    {
+        var roots = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            AddRoot(Path.Combine(current.FullName, "Characters_NVD@10012", "Assets", "Characters", "Reallusion"));
+            AddRoot(Path.Combine(current.FullName, "assets"));
+
+            current = current.Parent;
+        }
+
+        return roots;
+
+        void AddRoot(string path)
+        {
+            if (!Directory.Exists(path))
+            {
+                return;
+            }
+
+            var fullPath = Path.GetFullPath(path);
+            if (seen.Add(fullPath))
+            {
+                roots.Add(fullPath);
+            }
+        }
+    }
+
+    private static string? ResolveExplicitTopLevelAvatarUsd(IReadOnlyList<string> searchRoots)
+    {
+        var explicitNames = new[]
+        {
+            "avatar.usdz", "avatar.usdc", "avatar.usda", "avatar.usd",
+            "character.usdz", "character.usdc", "character.usda", "character.usd"
+        };
+
+        // Prefer local simplified assets/ folder for explicit "avatar.usd" drop-ins.
+        foreach (var root in searchRoots
+                     .OrderBy(root => Path.GetFileName(root).Equals("assets", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                     .ThenBy(root => root, StringComparer.OrdinalIgnoreCase))
+        {
+            foreach (var explicitName in explicitNames)
+            {
+                var candidate = Path.Combine(root, explicitName);
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ResolveCuratedFaceDefaultUsd(IReadOnlyList<string> searchRoots)
+    {
+        var reallusionRoots = searchRoots
+            .Where(root => Path.GetFileName(root).Equals("Reallusion", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (reallusionRoots.Count == 0)
+        {
+            return null;
+        }
+
+        // Reliable defaults for this project: full character Debra first (works with portrait framing),
+        // then A2F example meshes for tighter face experiments.
+        var preferredRelativePaths = new[]
+        {
+            Path.Combine("Debra", "Props", "Debra.usd"),
+            Path.Combine("Debra", "Debra.usd"),
+            Path.Combine("Audio2Face_Preset_Examples", "Debra_A2F_CC_GameBase", "Debra_Mark_fitted_mesh.usd"),
+            Path.Combine("Audio2Face_Preset_Examples", "Debra_A2F_CC_GameBase", "Debra_Mark_transferred.usd"),
+            Path.Combine("Worker", "Props", "Worker.usd"),
+            Path.Combine("Orc", "Props", "Orc.usd")
+        };
+
+        foreach (var root in reallusionRoots)
+        {
+            foreach (var relativePath in preferredRelativePaths)
+            {
+                var candidate = Path.Combine(root, relativePath);
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> EnumerateUsdFilesSafe(string root)
+    {
+        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+        {
+            yield break;
+        }
+
+        foreach (var pattern in new[] { "*.usd", "*.usda", "*.usdc", "*.usdz" })
+        {
+            IEnumerable<string> files;
+            try
+            {
+                files = Directory.EnumerateFiles(root, pattern, SearchOption.AllDirectories);
+            }
+            catch
+            {
+                continue;
+            }
+
+            foreach (var file in files)
+            {
+                yield return file;
+            }
+        }
     }
 
     private static string? ResolveAssetsDirectory()
@@ -775,6 +1052,8 @@ public partial class MainWindow : Window
         var relativePath = Path.GetRelativePath(assetsDirectory, file.FullName);
         var relativeParts = relativePath.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
         var fileNameWithoutExt = Path.GetFileNameWithoutExtension(file.Name);
+        var normalizedRelativePath = relativePath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+        var rootName = Path.GetFileName(assetsDirectory);
 
         if (fileNameWithoutExt.Contains("placeholder", StringComparison.OrdinalIgnoreCase))
         {
@@ -786,30 +1065,46 @@ public partial class MainWindow : Window
             score += 250;
         }
 
-        if (relativeParts.Length == 2 && relativeParts[0].Equals("Props", StringComparison.OrdinalIgnoreCase))
+        var propsIndex = Array.FindIndex(relativeParts, static part => part.Equals("Props", StringComparison.OrdinalIgnoreCase));
+        if (propsIndex >= 0)
         {
-            score += 500; // Prefer top-level avatar/assembly files under assets/Props
-        }
-        else if (relativeParts.Length > 0 && relativeParts[0].Equals("Props", StringComparison.OrdinalIgnoreCase))
-        {
-            score += 140;
+            score += 220;
+
+            if (relativeParts.Length == propsIndex + 2)
+            {
+                score += 480; // Prefer avatar assembly files directly under Props
+            }
+            else if (relativeParts.Length == propsIndex + 3)
+            {
+                score += 160;
+            }
+
+            if (propsIndex > 0 && fileNameWithoutExt.Equals(relativeParts[propsIndex - 1], StringComparison.OrdinalIgnoreCase))
+            {
+                score += 420; // Debra/Props/Debra.usd, Worker/Props/Worker.usd, etc.
+            }
         }
 
         foreach (var part in relativeParts)
         {
             if (part.Equals("Materials", StringComparison.OrdinalIgnoreCase) || part.Equals("Textures", StringComparison.OrdinalIgnoreCase))
             {
-                score -= 900;
+                score -= 2500;
             }
 
             if (part.Equals("Meshes", StringComparison.OrdinalIgnoreCase) || part.Equals("Bones", StringComparison.OrdinalIgnoreCase))
             {
-                score -= 450;
+                score -= 1200;
             }
 
             if (part.Equals("Motions", StringComparison.OrdinalIgnoreCase) || part.Equals("Animations", StringComparison.OrdinalIgnoreCase))
             {
-                score -= 700;
+                score -= 1600;
+            }
+
+            if (part.Equals(".thumbs", StringComparison.OrdinalIgnoreCase) || part.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+            {
+                score -= 4000;
             }
         }
 
@@ -822,6 +1117,47 @@ public partial class MainWindow : Window
             || fileNameWithoutExt.Contains("talk", StringComparison.OrdinalIgnoreCase))
         {
             score -= 220;
+        }
+
+        if (fileNameWithoutExt.Equals("debra", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 650;
+        }
+        else if (fileNameWithoutExt.Equals("worker", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 220;
+        }
+
+        if (fileNameWithoutExt.Contains("debra", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 260;
+        }
+
+        if (fileNameWithoutExt.Contains("head", StringComparison.OrdinalIgnoreCase)
+            || fileNameWithoutExt.Contains("face", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 180;
+        }
+
+        if (fileNameWithoutExt.Contains("fitted", StringComparison.OrdinalIgnoreCase)
+            || fileNameWithoutExt.Contains("transferred", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 140;
+        }
+
+        if (normalizedRelativePath.Contains($"{Path.DirectorySeparatorChar}Audio2Face_Preset_Examples{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 120;
+        }
+
+        if (normalizedRelativePath.Contains($"{Path.DirectorySeparatorChar}Debra{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 220;
+        }
+
+        if (string.Equals(rootName, "Reallusion", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 150; // Prefer richer character pack over minimal fallback assets when both exist.
         }
 
         if (file.Length < 1024)

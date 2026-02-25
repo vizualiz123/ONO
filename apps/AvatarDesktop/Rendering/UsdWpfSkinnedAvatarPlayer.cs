@@ -19,6 +19,9 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
     private readonly VtMatrix4dArray _jointWorld;
     private readonly VtMatrix4dArray _jointBindWorld;
     private readonly VtMatrix4dArray _jointSkinXforms;
+    private readonly int _jawJointIndex;
+    private readonly int _headJointIndex;
+    private readonly int _neckJointIndex;
     private readonly List<MeshRuntime> _meshes;
     private readonly UsdWpfMeshLoader.AxisConversionMode _axisMode;
     private readonly Model3DGroup _rootGroup;
@@ -26,6 +29,8 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
     private readonly double _timeEnd;
     private readonly double _timeCodesPerSecond;
     private readonly bool _isAnimated;
+    private double _proceduralMouthOpen;
+    private double _proceduralHeadCompensation;
     private double _currentTime;
     private bool _disposed;
 
@@ -39,6 +44,9 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
         VtMatrix4dArray jointWorld,
         VtMatrix4dArray jointBindWorld,
         VtMatrix4dArray jointSkinXforms,
+        int jawJointIndex,
+        int headJointIndex,
+        int neckJointIndex,
         List<MeshRuntime> meshes,
         UsdWpfMeshLoader.AxisConversionMode axisMode,
         Model3DGroup rootGroup,
@@ -56,6 +64,9 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
         _jointWorld = jointWorld;
         _jointBindWorld = jointBindWorld;
         _jointSkinXforms = jointSkinXforms;
+        _jawJointIndex = jawJointIndex;
+        _headJointIndex = headJointIndex;
+        _neckJointIndex = neckJointIndex;
         _meshes = meshes;
         _axisMode = axisMode;
         _rootGroup = rootGroup;
@@ -63,11 +74,25 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
         _timeEnd = timeEnd;
         _timeCodesPerSecond = timeCodesPerSecond;
         _isAnimated = isAnimated;
+        _proceduralMouthOpen = 0;
+        _proceduralHeadCompensation = 0;
         _currentTime = timeStart;
     }
 
     public Model3D Model => _rootGroup;
     public bool IsAnimated => _isAnimated;
+    public bool HasProceduralMouthRig => _jawJointIndex >= 0;
+
+    public void SetProceduralMouthRig(double mouthOpen, double headCompensation)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _proceduralMouthOpen = Math.Clamp(mouthOpen, 0, 1);
+        _proceduralHeadCompensation = Math.Clamp(headCompensation, 0, 1);
+    }
 
     public static bool TryCreate(string usdPath, Material fallbackMaterial, out UsdWpfSkinnedAvatarPlayer? player)
     {
@@ -97,6 +122,7 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
             }
 
             var skeletonJointIndexByName = BuildSkeletonJointIndexMap(skeletonQuery);
+            var (jawJointIndex, headJointIndex, neckJointIndex) = ResolveProceduralFaceJointIndices(skeletonJointIndexByName);
 
             var xformCache = new UsdGeomXformCache();
             var rootGroup = new Model3DGroup();
@@ -177,6 +203,9 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
                 jointWorld,
                 jointBindWorld,
                 jointSkinXforms,
+                jawJointIndex,
+                headJointIndex,
+                neckJointIndex,
                 meshes,
                 axisMode,
                 rootGroup,
@@ -264,6 +293,8 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
                 return;
             }
 
+            ApplyProceduralMouthRigToJoints();
+
             var concatOk = false;
             var skelPrim = _skeletonQuery.GetPrim();
             if (skelPrim.IsValid())
@@ -300,6 +331,62 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
         {
             // Keep previous pose.
         }
+    }
+
+    private void ApplyProceduralMouthRigToJoints()
+    {
+        var mouthOpen = _proceduralMouthOpen;
+        var headComp = _proceduralHeadCompensation;
+        if (mouthOpen <= 1e-4 && headComp <= 1e-4)
+        {
+            return;
+        }
+
+        // Very small procedural offsets layered on top of authored animation.
+        // This is a fallback "speaking mouth" effect for rigs without blendshape playback.
+        if (_jawJointIndex >= 0)
+        {
+            // Reallusion-style rigs commonly expose a jaw/jawRoot bone.
+            var jawPitchDeg = -(1.0 + (8.5 * mouthOpen));
+            var jawForward = 0.006 * mouthOpen;
+            var jawDown = -0.008 * mouthOpen;
+            ApplyLocalDelta(_jawJointIndex, jawPitchDeg, jawDown, jawForward);
+        }
+
+        if (_neckJointIndex >= 0)
+        {
+            var neckPitchDeg = 0.9 * headComp;
+            ApplyLocalDelta(_neckJointIndex, neckPitchDeg, 0, 0);
+        }
+
+        if (_headJointIndex >= 0)
+        {
+            var headPitchDeg = 1.6 * headComp;
+            ApplyLocalDelta(_headJointIndex, headPitchDeg, 0, 0);
+        }
+    }
+
+    private void ApplyLocalDelta(int jointIndex, double pitchXDegrees, double translateY, double translateZ)
+    {
+        if (jointIndex < 0 || jointIndex >= (int)_jointLocal.size())
+        {
+            return;
+        }
+
+        GfMatrix4d delta = new GfMatrix4d(1.0);
+
+        if (Math.Abs(pitchXDegrees) > 1e-6)
+        {
+            delta = Multiply(delta, CreateRowVectorRotationX(pitchXDegrees));
+        }
+
+        if (Math.Abs(translateY) > 1e-6 || Math.Abs(translateZ) > 1e-6)
+        {
+            delta = Multiply(delta, CreateRowVectorTranslation(0, translateY, translateZ));
+        }
+
+        // Row-vector convention: pre-multiply to apply offset in joint local space before authored local->parent transform.
+        _jointLocal[jointIndex] = Multiply(delta, _jointLocal[jointIndex]);
     }
 
     private static bool TryCreateSkelContext(
@@ -692,6 +779,115 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
         return false;
     }
 
+    private static (int jaw, int head, int neck) ResolveProceduralFaceJointIndices(Dictionary<string, int> skeletonJointIndexByName)
+    {
+        if (skeletonJointIndexByName.Count == 0)
+        {
+            return (-1, -1, -1);
+        }
+
+        var jaw = FindBestJointIndex(
+            skeletonJointIndexByName,
+            requiredTokens: new[] { "jaw" },
+            preferredTokens: new[] { "jawroot", "jaw_root", "cc_base_jaw" },
+            excludedTokens: new[] { "teeth", "tongue" });
+
+        var head = FindBestJointIndex(
+            skeletonJointIndexByName,
+            requiredTokens: new[] { "head" },
+            preferredTokens: new[] { "cc_base_head", "/head" },
+            excludedTokens: new[] { "headend", "head_end", "lookat", "look_at" });
+
+        var neck = FindBestJointIndex(
+            skeletonJointIndexByName,
+            requiredTokens: new[] { "neck" },
+            preferredTokens: new[] { "cc_base_neck", "neck01", "neck_01" },
+            excludedTokens: new[] { "twist02", "twist2" });
+
+        if (neck == head)
+        {
+            neck = -1;
+        }
+
+        return (jaw, head, neck);
+    }
+
+    private static int FindBestJointIndex(
+        Dictionary<string, int> skeletonJointIndexByName,
+        IEnumerable<string> requiredTokens,
+        IEnumerable<string>? preferredTokens = null,
+        IEnumerable<string>? excludedTokens = null)
+    {
+        var required = requiredTokens.Select(t => t.ToLowerInvariant()).ToArray();
+        var preferred = (preferredTokens ?? Array.Empty<string>()).Select(t => t.ToLowerInvariant()).ToArray();
+        var excluded = (excludedTokens ?? Array.Empty<string>()).Select(t => t.ToLowerInvariant()).ToArray();
+
+        var bestIndex = -1;
+        var bestScore = int.MinValue;
+        foreach (var kvp in skeletonJointIndexByName)
+        {
+            var normalized = kvp.Key.Replace('\\', '/').ToLowerInvariant();
+            if (required.Any() && required.Any(t => !normalized.Contains(t, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            if (excluded.Any(t => normalized.Contains(t, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            var nameOnly = normalized.Split('/').LastOrDefault() ?? normalized;
+            var score = 0;
+            score += 200 * preferred.Count(t => normalized.Contains(t, StringComparison.Ordinal));
+            score += 60 * required.Count(t => normalized.Contains(t, StringComparison.Ordinal));
+
+            if (preferred.Any(t => nameOnly.Equals(t, StringComparison.Ordinal) || nameOnly.EndsWith(t, StringComparison.Ordinal)))
+            {
+                score += 220;
+            }
+
+            if (nameOnly.Contains("twist", StringComparison.Ordinal))
+            {
+                score -= 80;
+            }
+
+            score -= nameOnly.Length;
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestIndex = kvp.Value;
+            }
+        }
+
+        return bestIndex;
+    }
+
+    private static GfMatrix4d CreateRowVectorRotationX(double degrees)
+    {
+        var radians = degrees * (Math.PI / 180.0);
+        var c = Math.Cos(radians);
+        var s = Math.Sin(radians);
+
+        // Row-vector form (transpose of the common column-vector Rx).
+        return new GfMatrix4d().Set(
+            1, 0, 0, 0,
+            0, c, s, 0,
+            0, -s, c, 0,
+            0, 0, 0, 1);
+    }
+
+    private static GfMatrix4d CreateRowVectorTranslation(double x, double y, double z)
+    {
+        // Row-vector homogeneous translation keeps offsets in the last row.
+        return new GfMatrix4d().Set(
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            x, y, z, 1);
+    }
+
     private static GfMatrix4d Multiply(GfMatrix4d a, GfMatrix4d b)
     {
         var am = new double[16];
@@ -733,6 +929,7 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
         private readonly TfToken _skinningMethod;
         private readonly int[]? _jointXformRemap;
         private readonly VtMatrix4dArray? _remappedJointSkinXforms;
+        private Vector3D[]? _normalScratch;
 
         private MeshRuntime(
             string primPath,
@@ -910,6 +1107,8 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
                 var p = world.TransformAffine(_workingPoints[sourceIndex]);
                 positions[vertexIndex] = UsdWpfMeshLoader.ConvertUsdPointToWpf(new GfVec3f((float)p[0], (float)p[1], (float)p[2]), axisMode);
             }
+
+            RecomputeSmoothNormals();
         }
 
         public void Dispose()
@@ -979,6 +1178,90 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
                 jointXformRemap = null;
                 remappedJointSkinXforms?.Dispose();
                 remappedJointSkinXforms = null;
+            }
+        }
+
+        private void RecomputeSmoothNormals()
+        {
+            var positions = MeshGeometry.Positions;
+            var triangles = MeshGeometry.TriangleIndices;
+            if (positions is null || triangles is null || positions.Count == 0 || triangles.Count < 3)
+            {
+                return;
+            }
+
+            var vertexCount = positions.Count;
+            var scratch = _normalScratch;
+            if (scratch is null || scratch.Length != vertexCount)
+            {
+                scratch = new Vector3D[vertexCount];
+                _normalScratch = scratch;
+            }
+            else
+            {
+                Array.Clear(scratch, 0, scratch.Length);
+            }
+
+            for (var i = 0; i + 2 < triangles.Count; i += 3)
+            {
+                var i0 = triangles[i];
+                var i1 = triangles[i + 1];
+                var i2 = triangles[i + 2];
+                if (i0 < 0 || i1 < 0 || i2 < 0 || i0 >= vertexCount || i1 >= vertexCount || i2 >= vertexCount)
+                {
+                    continue;
+                }
+
+                var p0 = positions[i0];
+                var p1 = positions[i1];
+                var p2 = positions[i2];
+                var faceNormal = Vector3D.CrossProduct(p1 - p0, p2 - p0);
+                if (faceNormal.LengthSquared < 1e-12)
+                {
+                    continue;
+                }
+
+                scratch[i0] += faceNormal;
+                scratch[i1] += faceNormal;
+                scratch[i2] += faceNormal;
+            }
+
+            var normals = MeshGeometry.Normals;
+            if (normals is null || normals.Count != vertexCount)
+            {
+                normals = new Vector3DCollection(vertexCount);
+                for (var i = 0; i < vertexCount; i++)
+                {
+                    var n = scratch[i];
+                    if (n.LengthSquared < 1e-12)
+                    {
+                        n = new Vector3D(0, 1, 0);
+                    }
+                    else
+                    {
+                        n.Normalize();
+                    }
+
+                    normals.Add(n);
+                }
+
+                MeshGeometry.Normals = normals;
+                return;
+            }
+
+            for (var i = 0; i < vertexCount; i++)
+            {
+                var n = scratch[i];
+                if (n.LengthSquared < 1e-12)
+                {
+                    n = new Vector3D(0, 1, 0);
+                }
+                else
+                {
+                    n.Normalize();
+                }
+
+                normals[i] = n;
             }
         }
     }
