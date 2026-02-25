@@ -1,0 +1,779 @@
+// Copyright (c) 2018-2020, NVIDIA CORPORATION.  All rights reserved.
+//
+// NVIDIA CORPORATION and its licensors retain all intellectual property
+// and proprietary rights in and to this software, related documentation
+// and any modifications thereto.  Any use, reproduction, disclosure or
+// distribution of this software and related documentation without an express
+// license agreement from NVIDIA CORPORATION is strictly prohibited.
+
+mdl 1.6;
+
+import ::anno::*;
+import ::base::*;
+import ::limits::*;
+import ::state::*;
+import ::tex::*;
+import ::math::*;
+
+import OmniRLSurfaceBase::*;
+import OmniShared::*;
+import OmniImage::*;
+
+
+// equalivalent to OmniShared::add_detail_normal
+float3 BlendAngleCorrectedNormals( float3 BaseNormal, float3 SubNormal )
+{
+    float ZPlus1 = BaseNormal.z + 1;
+    float3 vBaseZPlus1 = float3( BaseNormal.x, BaseNormal.y, ZPlus1 );
+    float3 vSubFlipRG = float3( -SubNormal.x, -SubNormal.y, SubNormal.z );
+    float fDot = math::dot( vBaseZPlus1, vSubFlipRG );
+    return math::normalize( ( vBaseZPlus1 * fDot ) - ( ZPlus1 * vSubFlipRG ) );
+}
+
+float3 IcBlendOverlay( float3 a, float3 b )
+{
+	float3 vA = 2 * a * b;
+	float3 vB = float3(1,1,1) - 2*(float3(1,1,1)-a)*(float3(1,1,1)-b);
+	float f0 = ( a.x < 0.5 ) ? vA.x : vB.x;
+	float f1 = ( a.y < 0.5 ) ? vA.y : vB.y;
+	float f2 = ( a.z < 0.5 ) ? vA.z : vB.z;
+	return float3( f0, f1, f2 );
+}
+
+float CheapContrast( float In, float Contrast )
+{
+    return math::saturate( math::lerp( 0 - Contrast, Contrast + 1, In ) );
+}
+
+float HQ_HeadRoughnessArea(
+	float Neck,
+	float Ear,
+	
+	float Nose,
+	float Mouth,
+	float Upperlid,
+	float Innerlid,
+	
+	float Cheek,
+	float Forehead,
+	float Upperlip,
+	float Chin,
+	
+	float2 NeckEar,
+	float4 NoseMouthUpperInnerLid,
+	float4 CheekForeheadUpperLipChin,
+	float UnmaskScale
+	)
+{
+    float2 t1 = NeckEar;
+    float neck = Neck* t1.x;
+    float ear  = Ear * t1.y;
+
+    float4 t2 = NoseMouthUpperInnerLid;
+    float nose     = Nose     * t2.x;
+    float mouth    = Mouth    * t2.y;
+    float upperlid = Upperlid * t2.z;
+    float innerlid = Innerlid * t2.w;
+
+    float4 t3 = CheekForeheadUpperLipChin;
+    float check    = Cheek    * t3.x;
+    float forehead = Forehead * t3.y;
+    float upperlip = Upperlip * t3.z;
+    float chin     = Chin     * t3.w;
+
+    float maskSum = math::saturate( t1.x + t1.y + t2.x + t2.y + t2.z + t2.w + t3.x + t3.y + t3.z + t3.w );
+
+    float sum = ear + neck + nose + mouth + upperlid + innerlid + check + forehead + upperlip + chin
+                + ( 1 - maskSum ) * UnmaskScale;
+    return sum;
+}
+
+float HQ_HeadSSSArea(
+	float Neck,
+	float Ear,
+	
+	float Nose,
+	float Mouth,
+	float Upperlid,
+	float Innerlid,
+	
+	float Cheek,
+	float Forehead,
+	float Upperlip,
+	float Chin,
+	
+	float2 NeckEar,
+	float4 NoseMouthUpperInnerLid,
+	float4 CheekForeheadUpperLipChin,
+	float UnmaskScale,
+	
+	float SSSMap
+	)
+{
+    float2 t1 = NeckEar;
+    float neck = (Neck-1)* t1.x;
+    float ear  = (Ear-1) * t1.y;
+
+    float4 t2 = NoseMouthUpperInnerLid;
+    float nose     = (Nose-1)     * t2.x;
+    float mouth    = (Mouth-1)    * t2.y;
+    float upperlid = (Upperlid-1) * t2.z;
+    float innerlid = (Innerlid-1) * t2.w;
+
+    float4 t3 = CheekForeheadUpperLipChin;
+    float cheek    = (Cheek-1)    * t3.x;
+    float forehead = (Forehead-1) * t3.y;
+    float upperlip = (Upperlip-1) * t3.z;
+    float chin     = (Chin-1)     * t3.w;
+
+    float maskSum = math::saturate( t1.x + t1.y + t2.x + t2.y + t2.z + t2.w + t3.x + t3.y + t3.z + t3.w );
+
+    float sum = ear + neck + nose + mouth + upperlid + innerlid + cheek + forehead + upperlip + chin
+                + ( 1 - maskSum ) * (UnmaskScale-1);
+    return math::lerp( 0.08, 1, math::saturate(sum + SSSMap) );
+}
+
+export material RLHead(
+
+	///////////////////////////////////////////////////
+    //Diffuse reflection
+    //
+    float diffuse_reflection_weight = float(1.0) [[
+        anno::display_name("Weight"),
+        anno::in_group("Base"),
+        anno::hard_range(0.0f, 1.0f)
+    ]],
+
+    uniform texture_2d diffuse_reflection_color_image = texture_2d() [[ 
+        anno::display_name("Color Image"),
+        anno::in_group("Base")
+    ]],
+
+//    uniform float BaseColorMap_Brightness = float(0.0) [[
+//        anno::display_name("BaseColorMap Brightness"),
+//        anno::in_group("Base"),
+//        anno::soft_range(-0.1f, 0.1f)
+//    ]],
+//    uniform float BaseColorMap_Saturation = float(0.0) [[
+//        anno::display_name("BaseColorMap Saturation"),
+//        anno::in_group("Base"),
+//        anno::soft_range(-0.1f, 0.1f)
+    //]],
+    //uniform texture_2d BaseColor_Blend_Image = texture_2d() [[ 
+    //    anno::display_name("Color Blend Image"),
+    //    anno::in_group("Base")
+    //]],
+    
+    uniform texture_2d BaseColor_Blend2_Image = texture_2d() [[ 
+        anno::display_name("2nd Color Blend Image"),
+        anno::in_group("Base")
+    ]],
+    uniform float BaseColor_Blend2_Strength = float(0.0) [[
+        anno::display_name("BaseColor_Blend2_Strength"),
+        anno::in_group("Base"),
+        anno::hard_range(0.0f, 1.f)
+    ]],
+    
+    ///////////////////////////////////////////////////
+    // Normal
+    uniform texture_2d geometry_normal_image = texture_2d() [[ 
+        anno::display_name("Normal Map Image"),
+        anno::in_group("Normal")
+    ]],
+
+    uniform bool geometry_normal_image_flip_g_channel = false [[
+        anno::display_name("Normal Map Flip G Channel"),
+        anno::in_group("Normal")
+    ]],
+    
+    uniform float geometry_normal_strength = float(0.7f) [[
+        anno::display_name("Normal Map Strength"),
+        anno::in_group("Normal"),
+        anno::hard_range(0.0f, 1.0f)
+    ]],
+
+    uniform texture_2d NormalMap_Blend_Image = texture_2d() [[ 
+        anno::display_name("2nd Normal Map Image"),
+        anno::in_group("Normal")
+    ]],
+    uniform float NormalMap_Blend_Strength = float(0.0) [[
+        anno::display_name("NormalMap_Blend_Strength"),
+        anno::in_group("Normal"),
+        anno::hard_range(0.0f, 1.0f)
+    ]],
+
+    //Micro Normal
+    //
+    uniform texture_2d micro_normal_image = texture_2d() [[ 
+        anno::display_name("Micro Normal Map Image"),
+        anno::in_group("Micro Normal")
+    ]],
+
+    uniform texture_2d micro_normal_mask_image = texture_2d() [[ 
+        anno::display_name("Micro Normal Mask Map Image"),
+        anno::in_group("Micro Normal")
+    ]],
+    uniform bool Flip_MicroNormal_Y = false [[
+        anno::display_name("Normal Map Image Flip G Channel"),
+        anno::in_group("Micro Normal")
+    ]],
+
+    uniform float MicroNormal_Strength = float(0.5f) [[
+        anno::display_name("MicroNormal_Strength"),
+        anno::in_group("Micro Normal"),
+        anno::hard_range(0.0f, 1.f)
+    ]],
+    uniform float MicroNormal_Tiling = float(25.0f) [[
+        anno::display_name("MicroNormal_Tiling"),
+        anno::in_group("Micro Normal"),
+        anno::soft_range(0.0f, 20.0f),
+        anno::hard_range(0.0f, 200.0f)
+    ]],
+    
+	///////////////////////////////////////////////////
+    // RL Mask of Roughness and Subsurface
+    uniform texture_2d Nose_Mouth_UpperInnerLid_Mask_Image = texture_2d() [[ 
+        anno::display_name("Nose_Mouth_UpperInnerLid_Mask Image"),
+        anno::in_group("Mask of Roughness and Subsurface")
+    ]],
+    uniform texture_2d Ear_Neck_Mask_Image = texture_2d() [[ 
+        anno::display_name("Ear_Neck_Mask Image"),
+        anno::in_group("Mask of Roughness and Subsurface")
+    ]],
+    uniform texture_2d Cheek_Fore_UpperLip_Chin_Mask_Image = texture_2d() [[ 
+        anno::display_name("Cheek_Fore_UpperLip_Chin_Mask Image"),
+        anno::in_group("Mask of Roughness and Subsurface")
+    ]],
+	///////////////////////////////////////////////////
+	// Roughness
+    uniform texture_2d specular_reflection_roughness_image = texture_2d() [[ 
+        anno::display_name("Roughness Image"),
+        anno::in_group("Roughness")
+    ]],
+    
+    uniform float roughness_multiplier = float(1.0) [[
+        anno::display_name("roughness multiplier"),
+        anno::in_group("Roughness"),
+        anno::hard_range(0.1f, 2.f)
+    ]],
+	
+	    
+    uniform float roughness_01 = float(0.75f) [[
+        anno::display_name("roughness_min"),
+        anno::in_group("Roughness"),
+        anno::hard_range(0.1f, 2.f)
+    ]], //Jeff 新增
+	
+	uniform float roughness_02 = float(1.35f) [[
+        anno::display_name("roughness_max"),
+        anno::in_group("Roughness"),
+        anno::hard_range(0.1f, 2.f)
+    ]],//Jeff 新增
+	uniform float roughness_lerp = float(0.85f) [[
+        anno::display_name("roughness_lerp"),
+        anno::in_group("Roughness"),
+        anno::hard_range(0.0f, 1.f)
+    ]],//Jeff 新增
+
+	
+	
+    
+    //Roughness Advanced
+    //
+    uniform float Micro_Roughness_Scale = float(0.0) [[
+        anno::display_name("Micro_Roughness_Scale"),
+        anno::in_group("Roughness Advanced"),
+        anno::hard_range(-1.5f, 1.5f),
+		anno::hidden()
+    ]],
+    uniform float Nose_Roughness_Scale = float(0.0) [[
+        anno::display_name("Nose_Roughness_Scale"),
+        anno::in_group("Roughness Advanced"),
+        anno::hard_range(-1.5f, 1.5f)
+    ]],
+    uniform float Mouth_Roughness_Scale = float(0.0) [[
+        anno::display_name("Mouth_Roughness_Scale"),
+        anno::in_group("Roughness Advanced"),
+        anno::hard_range(-1.5f, 1.5f)
+    ]],
+    uniform float UpperLid_Roughness_Scale = float(0.0) [[
+        anno::display_name("UpperLid_Roughness_Scale"),
+        anno::in_group("Roughness Advanced"),
+        anno::hard_range(-1.5f, 1.5f)
+    ]],
+    uniform float InnerLid_Roughness_Scale = float(0.0) [[
+        anno::display_name("InnerLid_Roughness_Scale"),
+        anno::in_group("Roughness Advanced"),
+        anno::hard_range(-1.5f, 1.5f)
+    ]],
+    uniform float Ear_Roughness_Scale = float(0.0) [[
+        anno::display_name("Ear_Roughness_Scale"),
+        anno::in_group("Roughness Advanced"),
+        anno::hard_range(-1.5f, 1.5f)
+    ]],
+    uniform float Neck_Roughness_Scale = float(0.0) [[
+        anno::display_name("Neck_Roughness_Scale"),
+        anno::in_group("Roughness Advanced"),
+        anno::hard_range(-1.5f, 1.5f)
+    ]],
+    uniform float Cheek_Roughness_Scale = float(0.0) [[
+        anno::display_name("Cheek_Roughness_Scale"),
+        anno::in_group("Roughness Advanced"),
+        anno::hard_range(-1.5f, 1.5f)
+    ]],
+    uniform float Forehead_Roughness_Scale = float(0.0) [[
+        anno::display_name("Forehead_Roughness_Scale"),
+        anno::in_group("Roughness Advanced"),
+        anno::hard_range(-1.5f, 1.5f)
+    ]],
+    uniform float UpperLip_Roughness_Scale = float(0.0) [[
+        anno::display_name("UpperLip_Roughness_Scale"),
+        anno::in_group("Roughness Advanced"),
+        anno::hard_range(-1.5f, 1.5f)
+    ]],
+    uniform float Chin_Roughness_Scale = float(0.0) [[
+        anno::display_name("Chin_Roughness_Scale"),
+        anno::in_group("Roughness Advanced"),
+        anno::hard_range(-1.5f, 1.5f)
+    ]],
+    uniform float Unmasked_Roughness_Scale = float(0.0) [[
+        anno::display_name("Unmasked_Roughness_Scale"),
+        anno::in_group("Roughness Advanced"),
+        anno::hard_range(-1.5f, 1.5f)
+    ]],
+
+	///////////////////////////////////////////////////
+    //Metal
+    //
+    uniform texture_2d metalness_image = texture_2d() [[ 
+        anno::display_name("Metalness Image"),
+        anno::in_group("Metallic")
+    ]],
+	///////////////////////////////////////////////////
+    //Specular reflection
+    //
+    float specular_reflection_weight = float(0.4f) [[ 
+        anno::display_name("Weight"),
+        anno::in_group("Specular"),
+        anno::hard_range(0.0f, 1.0f)
+    ]],
+
+    uniform texture_2d specular_reflection_weight_image = texture_2d() [[ 
+        anno::display_name("Weight Image"),
+        anno::in_group("Specular")
+    ]],
+
+    color specular_reflection_color = color(1.0) [[
+        anno::display_name("Specular Color"),
+        anno::in_group("Specular")
+    ]],
+
+    uniform OmniShared::ior_presets specular_reflection_ior_preset = 
+        OmniShared::ior_custom [[
+        anno::display_name("IOR Preset"),
+        anno::in_group("Specular")
+    ]],
+
+    uniform float specular_reflection_ior = float(1.35f) [[ 
+        anno::display_name("IOR"),    
+        anno::in_group("Specular"),
+        anno::soft_range(1.0f, 5.0f),
+        anno::hard_range(1.0f, limits::FLOAT_MAX)
+    ]],
+	///////////////////////////////////////////////////
+    //Subsurface
+    //
+    uniform float subsurface_weight = float(0.65f) [[
+        anno::display_name("Weight"),
+        anno::in_group("Subsurface"),
+        anno::hard_range(0.0f, 1.0f)
+    ]],
+    
+    uniform texture_2d subsurface_weight_image = texture_2d() [[ 
+        anno::display_name("Weight Image"),
+        anno::in_group("Subsurface")
+    ]],
+            
+    uniform OmniShared::scattering_colors_presets subsurface_scattering_colors_preset = 
+        OmniShared::scattering_colors_custom [[
+        anno::display_name("Scattering Presets"),
+        anno::in_group("Subsurface")
+    ]],
+    
+//    color subsurface_transmission_color = color(1.0) [[
+//        anno::display_name("Color"),
+//        anno::in_group("Subsurface")
+//    ]],
+//
+//    uniform texture_2d subsurface_transmission_color_image = texture_2d() [[ 
+//        anno::display_name("Color Image"),
+//        anno::in_group("Subsurface")
+//    ]],
+
+    color subsurface_scattering_color = color(0.911f, 0.173f, 0.173f) [[
+        anno::display_name("Radius (mfp)"),
+        anno::description("Multiply with Radius image to get final radius"),
+        anno::in_group("Subsurface")
+    ]],
+            
+    uniform texture_2d subsurface_scattering_color_image = texture_2d() [[
+        anno::display_name("Radius Image"),
+        anno::in_group("Subsurface")
+    ]],
+
+    uniform float subsurface_scale = float(0.25f) [[
+        anno::display_name("Scale (CC SSS radius)"),
+        anno::in_group("Subsurface"),
+        anno::hard_range(0.0f, 5.0f),
+        anno::hard_range(0.0f, 15.0f)
+    ]],
+
+    //Subsurface Mask 
+    //
+    uniform float Nose_Scatter_Scale = float(1.0) [[
+        anno::display_name("Nose_Scatter_Scale"),
+        anno::in_group("Subsurface Advanced"),
+        anno::hard_range(0.0f, 2.0f)
+    ]],
+    uniform float Mouth_Scatter_Scale = float(1.0) [[
+        anno::display_name("Mouth_Scatter_Scale"),
+        anno::in_group("Subsurface Advanced"),
+        anno::hard_range(0.0f, 2.0f)
+    ]],
+    uniform float UpperLid_Scatter_Scale = float(1.0) [[
+        anno::display_name("UpperLid_Scatter_Scale"),
+        anno::in_group("Subsurface Advanced"),
+        anno::hard_range(0.0f, 2.0f)
+    ]],
+    uniform float InnerLid_Scatter_Scale = float(1.0) [[
+        anno::display_name("InnerLid_Scatter_Scale"),
+        anno::in_group("Subsurface Advanced"),
+        anno::hard_range(0.0f, 2.0f)
+    ]],
+    uniform float Ear_Scatter_Scale = float(1.0) [[
+        anno::display_name("Ear_Scatter_Scale"),
+        anno::in_group("Subsurface Advanced"),
+        anno::hard_range(0.0f, 2.0f)
+    ]],
+    uniform float Neck_Scatter_Scale = float(1.0) [[
+        anno::display_name("Neck_Scatter_Scale"),
+        anno::in_group("Subsurface Advanced"),
+        anno::hard_range(0.0f, 2.0f)
+    ]],
+    uniform float Cheek_Scatter_Scale = float(1.0) [[
+        anno::display_name("Cheek_Scatter_Scale"),
+        anno::in_group("Subsurface Advanced"),
+        anno::hard_range(0.0f, 2.0f)
+    ]],
+    uniform float Forehead_Scatter_Scale = float(1.0) [[
+        anno::display_name("Forehead_Scatter_Scale"),
+        anno::in_group("Subsurface Advanced"),
+        anno::hard_range(0.0f, 2.0f)
+    ]],
+    uniform float UpperLip_Scatter_Scale = float(1.0) [[
+        anno::display_name("UpperLip_Scatter_Scale"),
+        anno::in_group("Subsurface Advanced"),
+        anno::hard_range(0.0f, 2.0f)
+    ]],
+    uniform float Chin_Scatter_Scale = float(1.0) [[
+        anno::display_name("Chin_Scatter_Scale"),
+        anno::in_group("Subsurface Advanced"),
+        anno::hard_range(0.0f, 2.0f)
+    ]],
+    uniform float Unmasked_Scatter_Scale = float(1.0) [[
+        anno::display_name("Unmasked_Scatter_Scale"),
+        anno::in_group("Subsurface Advanced"),
+        anno::hard_range(0.0f, 2.0f)
+    ]],
+	///////////////////////////////////////////////////
+    //Emission
+    //
+    float emission_weight = float(0.0) [[ 
+        anno::display_name("Weight"),
+        anno::in_group("Emission"),
+        anno::hard_range(0.0f, 1.0f)
+    ]],
+
+    color emission_color = color(1.0) [[
+        anno::display_name("Color (nit)"),
+        anno::in_group("Emission")
+    ]],
+
+    uniform texture_2d emission_color_image = texture_2d() [[ 
+        anno::display_name("Color Image"),
+        anno::in_group("Emission")
+    ]],
+
+    //Geometry
+    //
+    uniform bool thin_walled = false [[ 
+        anno::display_name("Thin Walled"),
+        anno::description("Thin surface with no interior."),
+        anno::in_group("Geometry")
+    ]],
+
+    //UVW
+    //
+    uniform bool uvw_ignore_missing_textures = false [[
+        anno::display_name("Ignore Missing Images"),
+        anno::in_group("UV Coordinates")
+    ]],
+
+    color uvw_missing_texture_color = color(0.0, 0.0, 0.0) [[
+        anno::display_name("Missing Image Color"),
+        anno::in_group("UV Coordinates")
+    ]],
+
+    uniform int uvw_uv_set = 0 [[
+        anno::display_name("UV Set"),
+        anno::in_group("UV Coordinates")
+    ]],
+
+    uniform bool uvw_use_uv_coords = false [[
+        anno::display_name("Use UV Coords"),
+        anno::in_group("UV Coordinates")
+    ]],
+
+    float2 uvw_uv_coords = float2(0.0) [[
+        anno::display_name("UV Coords"),
+        anno::in_group("UV Coordinates")
+    ]]
+
+)[[
+	anno::display_name("OmniRL DHHead"),
+    anno::author("Reallusion"),
+    anno::version(3, 4, 1, ""),
+    anno::modified(2020, 3, 24, "")
+    
+]] = let {
+    
+    float2 UV0 = float2(state::texture_coordinate(0).x, state::texture_coordinate(0).y);
+    
+
+	///////////////////////////////////////////////////
+    //Base Color
+	bool bHasBaseColorMap = tex::texture_isvalid(diffuse_reflection_color_image);
+    float3 vBaseColor = bHasBaseColorMap ? 
+        tex::lookup_float3(diffuse_reflection_color_image,UV0,tex::wrap_repeat,tex::wrap_repeat) :
+        float3(diffuse_reflection_weight);
+	
+	bool bHasBlendMap2 = tex::texture_isvalid(BaseColor_Blend2_Image);
+	
+    float3 vBlendMap2 = bHasBlendMap2 ?
+		tex::lookup_float3(BaseColor_Blend2_Image,UV0,tex::wrap_repeat,tex::wrap_repeat)
+			: float3(1,1,1);
+	float3 vBlend2 = math::lerp( float3(0.5,0.5,0.5), vBlendMap2, BaseColor_Blend2_Strength);
+//
+	float3 base_color_ = bHasBaseColorMap ? 
+	( bHasBlendMap2 ? IcBlendOverlay( vBaseColor, vBlend2 ) : vBaseColor ) 
+	: ( math::lerp( float3(1,1,1), vBlendMap2, BaseColor_Blend2_Strength) );
+	
+	color diffuse_reflection_color_ = color( base_color_.x, base_color_.y, base_color_.z );
+	
+	///////////////////////////////////////////////////
+	// micro_normal_image
+
+	float2 MicroNormalUv = (UV0 * MicroNormal_Tiling);
+	float3 MicroNormalColor = tex::texture_isvalid(micro_normal_image) ? 
+	( tex::lookup_float3(micro_normal_image,MicroNormalUv,tex::wrap_repeat,tex::wrap_repeat) * float3(2,2,2) - float3(1,1,1) ) : float3( 0, 0, 1 );
+
+	float MicroNormalMask = tex::texture_isvalid( micro_normal_mask_image ) ? tex::lookup_float(micro_normal_mask_image,UV0,tex::wrap_repeat,tex::wrap_repeat) : 1;
+	float MicroNormalStr = MicroNormal_Strength * MicroNormalMask;
+	float3 MicroNormal = math::normalize( MicroNormalColor*float3(MicroNormalStr, (Flip_MicroNormal_Y ? -1 : 1 ) * MicroNormalStr,1) );
+
+    // Normal calculations, RL flip G
+    float3 map_normal =  tex::texture_isvalid(geometry_normal_image) ?
+                ( tex::lookup_float3(geometry_normal_image,UV0,tex::wrap_repeat,tex::wrap_repeat) * float3(2,2,2) - float3(1,1,1) )
+                            : float3( 0, 0, 1 ) ;
+
+// 20210226 NV, geometry_normal_strength = 0 before normal bug is fixed
+	float3 map_normal_str = math::normalize( math::lerp( float3(0,0,1), map_normal, geometry_normal_strength ) );
+	float3 map_normal_flipY = geometry_normal_image_flip_g_channel ? map_normal_str * float3(1,-1,1) : map_normal_str;
+
+    float3 geometry_normal_0 = map_normal_flipY;
+
+	float3 NormalColor2 = tex::texture_isvalid(NormalMap_Blend_Image) ? 
+		( tex::lookup_float3(NormalMap_Blend_Image,UV0,tex::wrap_repeat,tex::wrap_repeat) * float3(2,2,2) - float3(1,1,1) ) : float3( 0, 0, 1 );
+
+	float3 NormalColor2Flip = geometry_normal_image_flip_g_channel ? NormalColor2 * float3(1,-1,1) : NormalColor2;
+
+	float3 Normal2nd = math::normalize( math::lerp( float3( 0, 0, 1 ), NormalColor2Flip, NormalMap_Blend_Strength ) );
+
+	float3 geometry_normal_2 = BlendAngleCorrectedNormals( geometry_normal_0, Normal2nd );
+	
+	float3 final_normal = BlendAngleCorrectedNormals( geometry_normal_2, MicroNormal );
+
+	float3 geometry_normal_ = math::normalize(
+        state::texture_tangent_u(0) * final_normal.x +
+        state::texture_tangent_v(0) * final_normal.y +
+        state::normal() * (final_normal.z) );
+        
+	///////////////////////////////////////////////////
+	// RL masks
+	//
+	float2 vNeckEarMask = tex::texture_isvalid( Ear_Neck_Mask_Image ) ?
+		tex::lookup_float2(Ear_Neck_Mask_Image,UV0,tex::wrap_repeat,tex::wrap_repeat)
+		: float2( 0 );
+		
+	float4 vNoseMouthUpperInnerLidMask = tex::texture_isvalid( Nose_Mouth_UpperInnerLid_Mask_Image ) ?
+		tex::lookup_float4(Nose_Mouth_UpperInnerLid_Mask_Image,UV0,tex::wrap_repeat,tex::wrap_repeat)
+		: float4( 0 );
+		
+	float4 vCheekForeheadUpperLipChinMask = tex::texture_isvalid( Cheek_Fore_UpperLip_Chin_Mask_Image ) ?
+		tex::lookup_float4(Cheek_Fore_UpperLip_Chin_Mask_Image,UV0,tex::wrap_repeat,tex::wrap_repeat)
+		: float4( 0 );
+
+	///////////////////////////////////////////////////			
+	//Roughness
+	//
+	float roughness_map_value = tex::texture_isvalid( specular_reflection_roughness_image ) ?
+		tex::lookup_float(specular_reflection_roughness_image,UV0,tex::wrap_repeat,tex::wrap_repeat)
+		: 0.5;
+	float fRoughnessLerp = math::lerp( roughness_01, roughness_02, roughness_lerp ); //Jeff 新增
+	
+    float fRoughnessmultiplier_temp = roughness_multiplier * fRoughnessLerp;//Jeff 新增
+
+	
+	float fAreaRoughness =  HQ_HeadRoughnessArea(
+		Neck_Roughness_Scale,
+		Ear_Roughness_Scale,
+		
+		Nose_Roughness_Scale,
+		Mouth_Roughness_Scale,
+		UpperLid_Roughness_Scale,
+		InnerLid_Roughness_Scale,
+		
+		Cheek_Roughness_Scale,
+		Forehead_Roughness_Scale,
+		UpperLip_Roughness_Scale,
+		Chin_Roughness_Scale,
+	
+		vNeckEarMask,
+		vNoseMouthUpperInnerLidMask,
+		vCheekForeheadUpperLipChinMask,
+		
+		Unmasked_Roughness_Scale );
+
+	float fContrastMicroRoughness = CheapContrast( Micro_Roughness_Scale + MicroNormal.x, 1 );
+
+	float fMicroRoughness = fAreaRoughness + fContrastMicroRoughness;
+
+	float fLerpContrastMicroRough = math::lerp( 0.85f, 1, fContrastMicroRoughness );
+
+	float face_roughness = math::saturate( ( roughness_map_value + fMicroRoughness ) * fLerpContrastMicroRough );
+
+// Inner_Mouth_Roughness_Scale = 0.8
+//float fMouthCavityMask = vMouthCavityMaskAo.x; // mouth cavity mask, Body is white
+	//float specular_reflection_roughness_ = math::saturate( math::lerp( 0.8, face_roughness, fMouthCavityMask ) );
+	float roughness_map_slider = math::saturate( face_roughness );
+			
+	///////////////////////////////////////////////////	
+    //Metalness
+    //
+    
+    float metalness_ = tex::texture_isvalid( metalness_image ) ?
+		tex::lookup_float(metalness_image,UV0,tex::wrap_repeat,tex::wrap_repeat)
+		: 0;
+    
+    //Specular reflection
+    //
+    float specular_reflection_weight_ = tex::texture_isvalid( specular_reflection_weight_image ) ?
+		tex::lookup_float(specular_reflection_weight_image,UV0,tex::wrap_repeat,tex::wrap_repeat) * specular_reflection_weight
+		: specular_reflection_weight;
+		
+    ///////////////////////////////////////////////////
+    //Subsurface
+    //
+    float sss_weight_map = tex::texture_isvalid( subsurface_weight_image )?
+    	tex::lookup_float(subsurface_weight_image,UV0,tex::wrap_repeat,tex::wrap_repeat)* subsurface_weight: subsurface_weight;
+	float sss_weight =  HQ_HeadSSSArea(
+												Neck_Scatter_Scale,
+												Ear_Scatter_Scale,
+												
+												Nose_Scatter_Scale,
+												Mouth_Scatter_Scale,
+												UpperLid_Scatter_Scale,
+												InnerLid_Scatter_Scale,
+												
+												Cheek_Scatter_Scale,
+												Forehead_Scatter_Scale,
+												UpperLip_Scatter_Scale,
+												Chin_Scatter_Scale,
+											
+												vNeckEarMask,
+												vNoseMouthUpperInnerLidMask,
+												vCheekForeheadUpperLipChinMask,
+												
+												Unmasked_Scatter_Scale, 
+												sss_weight_map );
+	
+	float3 sss_color_ = tex::texture_isvalid( subsurface_scattering_color_image ) ?
+			tex::lookup_float3(subsurface_scattering_color_image,UV0,tex::wrap_repeat,tex::wrap_repeat)
+			: float3( subsurface_scattering_color );
+	color subsurface_scattering_color_ = color(sss_color_.x, sss_color_.y, sss_color_.z );
+
+    
+//    color subsurface_transmission_color_ = tex::texture_isvalid(subsurface_transmission_color_image) ?
+//        OmniImage::texture_lookup_2(
+//            subsurface_transmission_color_image,
+//            uvw_ignore_missing_textures,
+//            uvw_missing_texture_color,
+//
+//            uvw_use_uv_coords,
+//            uvw_uv_coords
+//        ).tint :
+//        subsurface_transmission_color;
+
+	float final_roughness = math::saturate( math::lerp(1, fRoughnessmultiplier_temp,  math::saturate(sss_weight*10) ) * roughness_map_slider );//Jeff修改
+
+    // //Emission
+    color emission_color_ = tex::texture_isvalid(emission_color_image) ?
+        OmniImage::texture_lookup_2(
+            emission_color_image,
+            uvw_ignore_missing_textures,
+            uvw_missing_texture_color,
+
+            uvw_use_uv_coords,
+            uvw_uv_coords
+        ).tint :
+        emission_color;
+        
+} in
+    OmniRLSurfaceBase::OmniSurfaceBaseRL(
+
+    //Base
+    //
+    diffuse_reflection_weight: diffuse_reflection_weight,
+    diffuse_reflection_color: diffuse_reflection_color_,
+
+    //Metalness
+    //
+    metalness: metalness_,
+
+    //Specular reflection
+    //
+    specular_reflection_weight: specular_reflection_weight_, //Jeff修改
+    specular_reflection_roughness: final_roughness,
+	specular_reflection_color : specular_reflection_color,
+
+    specular_reflection_ior_preset: specular_reflection_ior_preset,
+    specular_reflection_ior: specular_reflection_ior,
+
+    //Subsurface
+    
+    subsurface_weight: sss_weight,
+    subsurface_scattering_colors_preset: subsurface_scattering_colors_preset,
+    subsurface_transmission_color: diffuse_reflection_color_, // 20210226 NV subsurface_transmission_color_,
+    subsurface_scattering_color: subsurface_scattering_color_,
+    subsurface_scale: subsurface_scale,
+
+    //Emission
+    //
+    emission_weight: emission_weight,
+    emission_color: emission_color_,
+    //Geometry
+    //
+    thin_walled: thin_walled,
+    geometry_normal: geometry_normal_
+
+    );

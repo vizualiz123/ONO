@@ -1,0 +1,9 @@
+.tmp/
+.tmp_UsdApiProbe/
+.tmp_usd_runtime/
+_tmp_build_check/
+
+cuda_12.1.0_531.14_windows.exe
+dotnet-sdk-8.0.418-win-x64.exe
+LM-Studio-0.4.4-1-x64.exe
+Characters_NVD@10012.zip

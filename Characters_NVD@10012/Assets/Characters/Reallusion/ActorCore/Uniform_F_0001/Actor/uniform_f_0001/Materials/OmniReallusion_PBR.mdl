@@ -1,0 +1,572 @@
+//* 3.5.0 - for CC3.5
+
+mdl 1.6;
+
+import ::anno::*;
+import ::base::*;
+import ::limits::*;
+import ::state::*;
+import ::tex::*;
+import ::math::*;
+
+import OmniReallusionBase::*;
+
+export enum RLBlendMode
+[[ 
+    anno::description("Blend map blend mode")
+]]
+{
+    blendmode_multiply = 0 [[ 
+        anno::display_name("multiply") 
+    ]],
+
+    blendmode_add = 1 [[ 
+        anno::display_name("add") 
+    ]],
+
+    blendmode_overlay = 2 [[ 
+        anno::display_name("overlay") 
+    ]]
+};
+
+float3 BlendMapByMode( float3 blend_color, float3 base_color, float weight, RLBlendMode mode )
+{
+    float3 top = blend_color;
+    float3 bottom = base_color;
+
+    float3 op_result = top;
+        
+    switch (mode) {
+    case blendmode_multiply:
+        op_result *= bottom;
+        break;
+    case blendmode_add:
+        op_result += bottom;
+        break;
+
+    case blendmode_overlay:
+        {
+
+            float3 mul = base_color*blend_color;
+            float3 add = base_color+blend_color;
+            if (base_color.x >= .5) mul.x = add.x-mul.x-0.5;
+            if (base_color.y >= .5) mul.y = add.y-mul.y-0.5;
+            if (base_color.z >= .5) mul.z = add.z-mul.z-0.5;
+            op_result = mul+mul;
+        }
+        break;
+    }
+    return math::lerp( bottom, op_result, weight );
+}
+
+// [ Sx   0   0 ]   [  cosR   sinR   0 ]   [  1   0   Tx ]   [  SxcosR   SxsinR  Tx ]
+// [  0  Sy   0 ] * [ -sinR   cosR   0 ] * [  0   1   Ty ] = [ -SysinR   SycosR  Ty ]
+// [  0   0   1 ]   [     0      0   1 ]   [  0   0    1 ]   [       0        0   1 ]
+// CRenderKit::SetTextureMatrix
+float3x3 GetUvFloat3x3( float2 kScale, float2 kTrans, float fRotate )
+{
+   	float fCos = math::cos( fRotate );
+    float fSin = math::sin( fRotate );
+    return float3x3 (
+		 kScale[0] * fCos, kScale[0] * fSin, kTrans[0],
+		-kScale[1] * fSin, kScale[1] * fCos, kTrans[1],
+		 0,                0,                1 );
+}
+
+float2 TransformUV( float2 uv, float3x3 uvMatrix )
+{
+	float3 uvw = float3( uv[0], 1 - uv[1], 1 ) * uvMatrix;
+	return float2( uvw[0], 1 - uvw[1] );
+}
+
+float saturation(color rgb)
+{
+    float max = math::max_value(rgb);
+    return (max != 0.0f) ? (1.0f - math::min_value(rgb)/max) : 0.0f;
+}
+
+float hue(float3 rgb)
+{
+    float max = math::max_value(rgb);
+    float min = math::min_value(rgb);
+    float range = max - min;
+    float inv_range = 1.0f/range;
+
+    float hue = (range != 0.0f) ?
+        (1.0f/6.0f) * (                                     // 60.0/360.0
+        (max == rgb.x) ? ((rgb.y-rgb.z)*inv_range)          // R is max
+        : (max == rgb.y) ? (2.0f + (rgb.z-rgb.x)*inv_range) // G is max
+        : (4.0f + (rgb.x-rgb.y)*inv_range)                  // B is max
+        )
+
+        : 0.0f;                                             // hue is undefined (assume 0)
+
+    return (hue >= 0.0f) ? hue : (hue + 1.0f);
+}
+
+float3 hsv_to_rgb(float3 hsv)
+{
+    // from "Color Imaging, Fundamentals and Applications", Reinhard et al., p. 442
+
+    // A hue of 1.0 is questionably valid, and needs to be interpreted as 0.0f
+    float h_prime = (hsv.x != 1.0f) ? hsv.x * 6.0f : 0.0f; // H * 360.0/60.0
+    float h_floor = math::floor(h_prime);
+    float f = h_prime - h_floor;
+    float zy = hsv.z*hsv.y;
+    float a = hsv.z - zy;
+    float b = hsv.z - zy*f;
+    float c = a + zy*f;
+
+    switch(int(h_floor))
+    {
+    default:
+
+        // fall through...
+    case 0:
+        return float3(hsv.z, c, a);
+    case 1:
+        return float3(b, hsv.z, a);
+    case 2:
+        return float3(a, hsv.z, c);
+    case 3:
+        return float3(a, b, hsv.z);
+    case 4:
+        return float3(c, a, hsv.z);
+    case 5:
+        return float3(hsv.z, a, b);
+    }
+}
+
+
+
+// naming ref OmniPBR
+export material OmniRLPbr(
+    // ------- BaseColor -------------
+    color diffuse_color_constant = color(1.0f)
+    [[
+        anno::display_name("Albedo"),
+        anno::description("This is the base color"),
+        anno::in_group("Albedo")
+    ]],
+    uniform texture_2d diffuse_texture = texture_2d()
+    [[
+        anno::display_name("Base Color Map"),
+        anno::in_group("Albedo")
+    ]],
+    uniform float diffuse_texture_strength = 1.0f
+    [[
+        anno::display_name("Base Color Map Strength"),
+        anno::in_group("Albedo"),
+        anno::soft_range(0.0, 1.0)
+    ]],
+    
+    uniform float albedo_add = 0
+    [[
+        anno::display_name("Albedo Add"),
+		anno::soft_range(float(-0.5f), float(0.5f)),
+		anno::description("Adds a constant value to the diffuse color "),
+        anno::in_group("Albedo")
+    ]],
+    
+    uniform bool enable_brighten_basecolor_by_metallic = true
+	[[
+		anno::display_name("Brighten Base Color map by Metallic map"),
+		anno::in_group("Albedo")
+	]],
+    
+    uniform texture_2d blend_map = texture_2d()
+    [[
+        anno::display_name("Blend Map"),
+        anno::in_group("Albedo")
+    ]],
+    uniform float blend_map_strength = 1.0f
+    [[
+        anno::display_name("Blend Map Strength"),
+        anno::in_group("Albedo"),
+        anno::soft_range(0.0, 1.0)
+    ]],
+    uniform RLBlendMode blend_map_mode = blendmode_multiply
+    [[
+		anno::display_name("Blend Mode"),
+        anno::in_group("Albedo")
+    ]],
+    // ------- Roughness, Metallic -------------
+    float roughness_multiplier = 1.0f
+    [[
+        anno::display_name("Roughness Multiplier"),
+        anno::soft_range(0.0, 2.),
+        anno::description("Multiple with Roughness Map value"),
+        anno::in_group("Reflectivity")
+    ]],
+    uniform texture_2d reflectionroughness_texture = texture_2d()
+    [[
+        anno::display_name("Roughness Map"),
+        anno::in_group("Reflectivity")
+    ]],
+    
+    
+    float metallic_offset = 0.f
+    [[
+        anno::display_name("Metallic Offset"),
+        anno::soft_range(0.f, 1.f),
+        anno::soft_range(0.f, 2.f),
+        anno::description("Metallic = (Texture + offset) * multiplier"),
+        anno::in_group("Reflectivity")
+    ]], 
+    float metallic_multiplier = 1.0f
+    [[
+        anno::display_name("Metallic Multiplier"),
+        anno::soft_range(0.f, 1.f),
+        anno::soft_range(0.f, 2.f),
+        anno::description("Metallic = (Texture + offset) * multiplier"),
+        anno::in_group("Reflectivity")
+    ]],
+    uniform texture_2d metallic_texture = texture_2d()
+    [[
+        anno::display_name("Metallic Map"),
+        anno::in_group("Reflectivity")
+    ]], 
+    float specular_level = float(0.4)
+    [[
+        anno::display_name("Specular"),
+        anno::soft_range(float(0.0f), float(1.0f)),
+        anno::description("The specular level (intensity) of the material"),
+        anno::in_group("Reflectivity")
+    ]],
+    
+    // -------- AO ------------
+    uniform float ao_to_diffuse = float(0.0) [[
+        anno::display_name("AO to Diffuse"),
+        anno::description("Controls the amount of ambient occlusion multiplied into the diffuse color channel"),
+        anno::in_group("AO"),
+        anno::soft_range(0.0,1.)
+    ]],
+    uniform texture_2d ao_texture = texture_2d() [[
+        anno::display_name("Ambient Occlusion Map"),
+        anno::description("The Ambient Occlusion texture for the material"),
+        anno::in_group("AO")
+    ]],
+
+
+    // -------------------- EMISSIVE ----------------------
+
+    uniform texture_2d emissive_texture    = texture_2d()
+    [[
+        anno::display_name("Emissive map"),
+        anno::in_group("Emissive")
+    ]],
+
+	uniform float emissive_map_strength = 1.0f
+    [[
+        anno::display_name("Emissive Map Strength"),
+        anno::in_group("Emissive"),
+        anno::soft_range(0.0, 1.0)
+    ]],
+
+	// RL glow = glow map * strength * material diffuse * material ambient
+    uniform color emissive_color    = color(0, 0, 0)
+    [[
+        anno::display_name("Emissive Color"),
+        anno::description("Final Emissive Color = Base Color * Base Color Map * Emissive Color * Emissive Map"),
+        anno::in_group("Emissive")
+    ]],
+
+    uniform float emissive_intensity = 10.f
+    [[
+        anno::display_name("Emissive Intensity"),    
+        anno::in_group("Emissive"),
+        anno::soft_range(0.0,20.0)
+    ]],
+
+
+
+    // -------------------- Normal ----------------------
+
+    uniform float normal_map_strength = 0.7f
+    [[
+        anno::display_name("Normal Map Strength"),
+        anno::description("Strength of normal map."),
+        anno::in_group("Normal"),
+        anno::soft_range(0.0f, 2.0f)
+    ]],
+    
+    uniform texture_2d normalmap_texture = texture_2d()
+    [[
+        anno::display_name("Normal Map"),
+        anno::description("Enables the usage of the normalmap texture"),
+        anno::in_group("Normal")
+    ]], 
+
+	uniform bool flip_normal_y = false
+	[[
+		anno::display_name("Flip Normal Y"),
+		anno::description("Flip Normal Map Y channel"),
+		anno::in_group("Normal")
+	]],
+
+	// -------------------- Opacity ----------------------
+	
+	uniform bool enable_opacity_cutout = true
+	[[
+		anno::display_name("Enable Opacity Cutout"),
+		anno::description("Enables the use of cutout opacity"),
+		anno::in_group("Opacity")
+	]],
+
+	uniform float opacity_threshold = float(0.2) [[
+        anno::display_name("Opacity Threshold"),
+        anno::in_group("Opacity"),
+        anno::soft_range(0.0f, 1.0f)
+    ]],
+
+	uniform texture_2d opacity_texture = texture_2d()
+	[[
+		anno::display_name("Opacity Map"),
+		anno::in_group("Opacity")
+	]],
+
+    uniform float opacity_map_strength = 1.0f
+    [[
+        anno::display_name("Opacity Map Strength"),
+        anno::in_group("Opacity"),
+        anno::soft_range(0.0, 1.0)
+    ]],
+
+	uniform float opacity_multiplier = 1.f
+	[[
+		anno::display_name("Opacity Multiplier"),
+		anno::in_group("Opacity"),
+		anno::soft_range(0.0, 1.0)
+	]],
+	
+	///////////////////////////////////////////////
+	// UV	
+	uniform float2 uv_translate =  float2(0.0f)
+	[[
+		anno::display_name("UV Translate"),
+		anno::description("Controls position of texture."),
+		anno::in_group("UV")
+	]],
+	uniform float uv_rotate =  0.f
+	[[
+		anno::display_name("UV Rotate"),
+		anno::description("Rotates angle of texture in degrees."),
+		anno::in_group("UV")
+	]],
+	uniform float2 uv_scale =  float2(1.0f)
+	[[
+		anno::display_name("UV Scale"),
+		anno::description("Larger number increases size of texture."),
+		anno::in_group("UV")
+	]],
+	////////
+	uniform float2 opacity_uv_translate =  float2(0.0f)
+	[[
+		anno::display_name("opacity UV Translate"),
+		anno::in_group("UV")
+	]],
+	uniform float opacity_uv_rotate =  0.f
+	[[
+		anno::display_name("opacity UV Rotate"),
+		anno::in_group("UV")
+	]],
+	uniform float2 opacity_uv_scale =  float2(1.0f)
+	[[
+		anno::display_name("opacity UV Scale"),
+		anno::in_group("UV")
+	]],
+	////////
+	uniform float2 normal_uv_translate =  float2(0.0f)
+	[[
+		anno::display_name("normal UV Translate"),
+		anno::in_group("UV")
+	]],
+	uniform float normal_uv_rotate =  0.f
+	[[
+		anno::display_name("normal UV Rotate"),
+		anno::in_group("UV")
+	]],
+	uniform float2 normal_uv_scale =  float2(1.0f)
+	[[
+		anno::display_name("normal UV Scale"),
+		anno::in_group("UV")
+	]],
+    ////////
+	uniform float2 ao_uv_translate =  float2(0.0f)
+	[[
+		anno::display_name("AO UV Translate"),
+		anno::in_group("UV")
+	]],
+	uniform float ao_uv_rotate =  0.f
+	[[
+		anno::display_name("AO UV Rotate"),
+		anno::in_group("UV")
+	]],
+	uniform float2 ao_uv_scale =  float2(1.0f)
+	[[
+		anno::display_name("AO UV Scale"),
+		anno::in_group("UV")
+	]],
+    ////////
+	uniform float2 metal_uv_translate =  float2(0.0f)
+	[[
+		anno::display_name("Metallic UV Translate"),
+		anno::in_group("UV")
+	]],
+	uniform float metal_uv_rotate =  0.f
+	[[
+		anno::display_name("Metallic UV Rotate"),
+		anno::in_group("UV")
+	]],
+	uniform float2 metal_uv_scale =  float2(1.0f)
+	[[
+		anno::display_name("Metallic UV Scale"),
+		anno::in_group("UV")
+	]],
+    ////////
+	uniform float2 rough_uv_translate =  float2(0.0f)
+	[[
+		anno::display_name("roughness UV Translate"),
+		anno::in_group("UV")
+	]],
+	uniform float rough_uv_rotate =  0.f
+	[[
+		anno::display_name("roughness UV Rotate"),
+		anno::in_group("UV")
+	]],
+	uniform float2 rough_uv_scale =  float2(1.0f)
+	[[
+		anno::display_name("roughness UV Scale"),
+		anno::in_group("UV")
+	]],
+    ////////
+	uniform float2 emissive_uv_translate =  float2(0.0f)
+	[[
+		anno::display_name("Emissive UV Translate"),
+		anno::in_group("UV")
+	]],
+	uniform float emissive_uv_rotate =  0.f
+	[[
+		anno::display_name("Emissive UV Rotate"),
+		anno::in_group("UV")
+	]],
+	uniform float2 emissive_uv_scale =  float2(1.0f)
+	[[
+		anno::display_name("Emissive UV Scale"),
+		anno::in_group("UV")
+	]],
+    ////////
+	
+	uniform float2 blend_uv_translate =  float2(0.0f)
+	[[
+		anno::display_name("Blend map UV Translate"),
+		anno::description("Controls the position of the blendmap texture."),
+		anno::in_group("UV")
+	]],
+	uniform float  blend_uv_rotate =  0.f
+	[[
+		anno::display_name("Blend map UV Rotate"),
+		anno::description("Rotates angle of the blendmap texture in degrees."),
+		anno::in_group("UV")
+	]],
+	uniform float2 blend_uv_scale =  float2(1.0f)
+	[[
+		anno::display_name("Blend map UV Scale"),
+		anno::description("Larger numbers increase the size of the blendmap texture"),
+		anno::in_group("UV")
+	]],
+	uniform int uv_space_index =  0
+	[[
+		anno::display_name("UV Space Index"),
+		anno::in_group("UV")
+	]]
+
+) = let {
+
+	float2 uv_ = float2(state::texture_coordinate(uv_space_index).x, state::texture_coordinate(uv_space_index).y);
+	float2 UV0 = TransformUV( uv_, GetUvFloat3x3( uv_scale, uv_translate, uv_rotate ) );
+	float2 uv_blendmap = TransformUV( uv_, GetUvFloat3x3( blend_uv_scale, blend_uv_translate, blend_uv_rotate ) );
+	float2 uv_opacity  = TransformUV( uv_, GetUvFloat3x3( opacity_uv_scale, opacity_uv_translate, opacity_uv_rotate ) );
+	float2 uv_normal   = TransformUV( uv_, GetUvFloat3x3( normal_uv_scale, normal_uv_translate, normal_uv_rotate ) )   ;
+	float2 uv_ao       = TransformUV( uv_, GetUvFloat3x3( ao_uv_scale,     ao_uv_translate,     ao_uv_rotate ) )       ;
+	float2 uv_metal    = TransformUV( uv_, GetUvFloat3x3( metal_uv_scale,  metal_uv_translate,  metal_uv_rotate ) )    ;
+	float2 uv_rough    = TransformUV( uv_, GetUvFloat3x3( rough_uv_scale,  rough_uv_translate,  rough_uv_rotate ) )    ;
+	float2 uv_emissive = TransformUV( uv_, GetUvFloat3x3( emissive_uv_scale, emissive_uv_translate, emissive_uv_rotate ) );
+	
+    // Normal calculations, RL flip G
+    float3 map_normal =  tex::texture_isvalid(normalmap_texture) ?
+                ( tex::lookup_float3(normalmap_texture,uv_normal,tex::wrap_repeat,tex::wrap_repeat) * float3(2,-2,2) - float3(1,-1,1) )
+                            : float3( 0, 0, 1 ) ;
+
+	float3 tangent_space_normal = math::lerp( float3(0, 0, 1), map_normal, normal_map_strength ) * ( flip_normal_y ? float3( 1, -1, 1 ) : float3( 1, 1, 1 ) );
+	
+	//Metallic
+    float metal_color_ = tex::texture_isvalid(metallic_texture) ? 
+        tex::lookup_float(metallic_texture,uv_metal,tex::wrap_repeat,tex::wrap_repeat):
+        0;
+	
+    //Base
+    float3 base_color_raw = tex::texture_isvalid(diffuse_texture) ? 
+        tex::lookup_float3(diffuse_texture,UV0,tex::wrap_repeat,tex::wrap_repeat) : float3(1);
+        
+    float3 hsv = float3(  hue(base_color_raw), saturation( color(base_color_raw) ), math::luminance( color( base_color_raw ) ) );
+    float3 new_color = hsv_to_rgb( float3( hsv[0], hsv[1], hsv[2]*0.9f + 0.1 ) );        
+        
+	float3 base_color_added = ( enable_brighten_basecolor_by_metallic && math::luminance( color( base_color_raw ) ) < 0.5f ) ?
+		math::lerp( base_color_raw, new_color, math::saturate( metal_color_) )
+		: base_color_raw;
+	
+    float3 base_color_ = 
+        math::lerp( float3(1), base_color_added + albedo_add, diffuse_texture_strength );
+        
+	float3 color_blended = tex::texture_isvalid(blend_map) ? 
+        BlendMapByMode( tex::lookup_float3(blend_map, uv_blendmap,tex::wrap_repeat,tex::wrap_repeat), base_color_, blend_map_strength, blend_map_mode ) 
+        : base_color_;
+ 
+	float blend_ao = math::lerp( 1,
+         ( tex::texture_isvalid(ao_texture) ? tex::lookup_float(ao_texture,uv_ao,tex::wrap_repeat,tex::wrap_repeat) : 1 ),
+         ao_to_diffuse );
+             
+	float3 final_base_color = color_blended * blend_ao * float3(diffuse_color_constant);
+
+	float opacity_color = opacity_multiplier *
+							( tex::texture_isvalid(opacity_texture) ? 
+						math::lerp( 1, tex::lookup_float(opacity_texture,uv_opacity,tex::wrap_repeat,tex::wrap_repeat), opacity_map_strength ) :
+						opacity_multiplier);
+
+	
+
+    //Roughness
+    float rough_color_ = tex::texture_isvalid(reflectionroughness_texture) ? 
+        tex::lookup_float(reflectionroughness_texture,uv_rough,tex::wrap_repeat,tex::wrap_repeat) :
+        1;
+
+
+        
+    //Emissive
+    float3 emissive_map_color = tex::texture_isvalid(emissive_texture) ? 
+        tex::lookup_float3(emissive_texture,uv_emissive,tex::wrap_repeat,tex::wrap_repeat) * emissive_map_strength : float3(1);
+        
+	float3 emissive_color_ = emissive_map_color * color_blended * float3(diffuse_color_constant) * float3(emissive_color) * float3(emissive_intensity);
+	// opacity_threshold
+	
+	float local_cutout_opacity = enable_opacity_cutout ? ((opacity_color >= opacity_threshold) ? 1.0 : 0) : opacity_color;
+
+} in
+    OmniReallusionBase::OmniRLBase(
+
+	base_color : final_base_color,
+	normal : tangent_space_normal,
+	metallic : (metal_color_ + metallic_offset) * metallic_multiplier,
+	roughness : rough_color_ * roughness_multiplier,
+	specular: specular_level,
+	emissive_color : emissive_color_,
+	opacity: local_cutout_opacity
+    );
+	
+	
+	
+	
+	
+	
+	
