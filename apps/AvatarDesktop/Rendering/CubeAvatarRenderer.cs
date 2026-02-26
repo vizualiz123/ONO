@@ -2,14 +2,46 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Media3D;
 using System.IO;
+using ShapePath = System.Windows.Shapes.Path;
 
 namespace AvatarDesktop.Rendering;
 
 public sealed class CubeAvatarRenderer : IAvatarRenderer
 {
+    private static readonly bool GhostPresentationEnabled = false;
+    private static readonly bool WireframeEnabled = true;
+    private static readonly bool WireframeOnlyPresentationEnabled = true;
+    private static readonly bool SceneLightingEnabled = false;
+    private static readonly bool AutoExportProceduralMouthMorphTarget = true;
+    private static readonly bool AreaLightWaveEffectEnabled = false;
+    private static readonly bool MainLayerBlurEnabled = false;
+    private static readonly bool WireframeBlurEnabled = false;
+    private static readonly bool WireframeGlowEnabled = true;
+    private static readonly bool WireframeBackfaceCullingEnabled = true;
+    private static readonly bool RadialFrameFadeEnabled = true;
+    private const string UniversalBlendshape1Name = "blendshape_1";
+    private const string UniversalBlendshape2Name = "blendshape_2";
+    private const double MainLayerOpacity = 0.90; // 10% transparency
+    private const double MainLayerGaussianBlurRadius = 3.2;
+    private const double WireframeGaussianBlurRadius = 2.6;
+    private const double WireframeGlowBlurRadius = 10.0;
+    private const double AreaLightWaveBaseOpacity = 0.22;
+    private const double AreaLightWaveSweepCyclesPerSecond = 0.18;
+    private const double RadialFrameFadeMidStopOffset = 0.80;
+    private const double RadialFrameFadeMidStopOpacity = 0.80;
+    private const double IdleMouthOpenAmount = 0.58;
+    private const double IdleMouthHeadCompensation = 0.14;
+    private const double ExportMouthOpenAmount = 0.72;
+    private const double ExportMouthHeadCompensation = 0.18;
+
+    private readonly Grid _viewRoot;
+    private readonly Border _mainLayerHost;
+    private readonly Border _areaLightWaveOverlay;
     private readonly Viewport3D _viewport;
+    private readonly ShapePath _wireframeOverlay;
     private readonly PerspectiveCamera _camera;
     private readonly bool _showGroundPlane;
     private readonly AxisAngleRotation3D _rotationY;
@@ -25,7 +57,12 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
     private readonly DiffuseMaterial _cubeMaterial;
     private readonly GeometryModel3D _cubeModel;
     private readonly Model3DGroup _avatarModelGroup;
+    private readonly List<WireframeOverlayMesh> _wireframeMeshes = new();
     private Vector3D _cameraUpDirection = new(0, 1, 0);
+    private readonly HashSet<GeometryModel3D> _ghostStyledGeometry = new();
+    private readonly TranslateTransform _areaLightWaveTranslate;
+    private readonly RotateTransform _areaLightWaveRotate;
+    private readonly ScaleTransform _areaLightWaveScale;
 
     private double _ySpeedDegPerSec = 18;
     private double _xTargetDeg = 0;
@@ -46,10 +83,34 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
     public CubeAvatarRenderer(bool showGroundPlane = true)
     {
         _showGroundPlane = showGroundPlane;
+        _viewRoot = new Grid
+        {
+            ClipToBounds = true,
+        };
+        if (RadialFrameFadeEnabled)
+        {
+            _viewRoot.OpacityMask = CreateRadialFrameOpacityMask();
+        }
         _viewport = new Viewport3D
         {
             ClipToBounds = true,
         };
+        _mainLayerHost = new Border
+        {
+            Child = _viewport,
+            Background = Brushes.Transparent,
+            Opacity = WireframeOnlyPresentationEnabled ? 0.0 : MainLayerOpacity,
+            CacheMode = new BitmapCache(),
+        };
+        if (!WireframeOnlyPresentationEnabled && MainLayerBlurEnabled)
+        {
+            _mainLayerHost.Effect = new BlurEffect
+            {
+                Radius = MainLayerGaussianBlurRadius,
+                KernelType = KernelType.Gaussian,
+                RenderingBias = RenderingBias.Quality
+            };
+        }
         RenderOptions.SetEdgeMode(_viewport, EdgeMode.Unspecified);
         RenderOptions.SetBitmapScalingMode(_viewport, BitmapScalingMode.HighQuality);
         _viewport.SizeChanged += (_, _) => ReframeLoadedUsdCamera();
@@ -57,25 +118,102 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
         _viewport.MouseMove += Viewport_MouseMove;
         _viewport.MouseLeftButtonUp += Viewport_MouseLeftButtonUp;
         _viewport.MouseLeave += Viewport_MouseLeave;
+        _viewport.MouseWheel += Viewport_MouseWheel;
 
         _camera = new PerspectiveCamera();
         ApplyCubeCameraPreset();
         _viewport.Camera = _camera;
 
+        _areaLightWaveTranslate = new TranslateTransform();
+        _areaLightWaveRotate = new RotateTransform(-17.0, 0.5, 0.5);
+        _areaLightWaveScale = new ScaleTransform(1.25, 1.15, 0.5, 0.5);
+        var areaWaveTransform = new TransformGroup();
+        areaWaveTransform.Children.Add(_areaLightWaveScale);
+        areaWaveTransform.Children.Add(_areaLightWaveRotate);
+        areaWaveTransform.Children.Add(_areaLightWaveTranslate);
+
+        var areaWaveBrush = new LinearGradientBrush
+        {
+            StartPoint = new Point(0, 0.5),
+            EndPoint = new Point(1, 0.5),
+            MappingMode = BrushMappingMode.RelativeToBoundingBox,
+            ColorInterpolationMode = ColorInterpolationMode.ScRgbLinearInterpolation,
+            RelativeTransform = areaWaveTransform,
+        };
+        areaWaveBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0, 120, 210, 255), 0.30));
+        areaWaveBrush.GradientStops.Add(new GradientStop(Color.FromArgb(16, 140, 226, 255), 0.42));
+        areaWaveBrush.GradientStops.Add(new GradientStop(Color.FromArgb(86, 235, 248, 255), 0.50));
+        areaWaveBrush.GradientStops.Add(new GradientStop(Color.FromArgb(20, 130, 220, 255), 0.58));
+        areaWaveBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0, 120, 210, 255), 0.70));
+
+        _areaLightWaveOverlay = new Border
+        {
+            Background = areaWaveBrush,
+            IsHitTestVisible = false,
+            Opacity = 0.0,
+            CacheMode = new BitmapCache(),
+        };
+        if (AreaLightWaveEffectEnabled)
+        {
+            _areaLightWaveOverlay.Effect = new BlurEffect
+            {
+                Radius = 7.5,
+                KernelType = KernelType.Gaussian,
+                RenderingBias = RenderingBias.Performance
+            };
+        }
+
+        _wireframeOverlay = new ShapePath
+        {
+            Stroke = new SolidColorBrush(Color.FromArgb(245, 72, 255, 236)),
+            StrokeThickness = 1.05,
+            SnapsToDevicePixels = true,
+            IsHitTestVisible = false,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+            StrokeLineJoin = PenLineJoin.Round,
+            Opacity = WireframeEnabled ? (WireframeOnlyPresentationEnabled ? 1.0 : 0.9) : 0.0,
+            CacheMode = new BitmapCache(),
+        };
+        if (WireframeEnabled && WireframeOnlyPresentationEnabled && WireframeBlurEnabled)
+        {
+            _wireframeOverlay.Effect = new BlurEffect
+            {
+                Radius = WireframeGaussianBlurRadius,
+                KernelType = KernelType.Gaussian,
+                RenderingBias = RenderingBias.Quality
+            };
+        }
+        else if (WireframeEnabled && WireframeGlowEnabled)
+        {
+            _wireframeOverlay.Effect = new DropShadowEffect
+            {
+                Color = Color.FromRgb(40, 255, 235),
+                BlurRadius = WireframeGlowBlurRadius,
+                ShadowDepth = 0,
+                Opacity = 0.95,
+                RenderingBias = RenderingBias.Performance
+            };
+        }
+        RenderOptions.SetEdgeMode(_wireframeOverlay, EdgeMode.Aliased);
+
         var root = new Model3DGroup();
-        // WPF has no real GI, so use a stylized dramatic key/fill/rim stack.
-        _ambientLight = new AmbientLight(Color.FromRgb(64, 70, 80));
-        _keyLight = new DirectionalLight(Color.FromRgb(248, 228, 206), new Vector3D(-0.55, -0.28, -1.0));
-        _fillLight = new DirectionalLight(Color.FromRgb(118, 148, 215), new Vector3D(0.52, -0.12, -0.45));
-        _bounceLight = new DirectionalLight(Color.FromRgb(118, 94, 76), new Vector3D(0.18, 1.0, 0.15));
-        _rimLight = new DirectionalLight(Color.FromRgb(126, 214, 248), new Vector3D(0.22, -0.08, 1.0));
-        _cameraFillLight = new PointLight(Color.FromRgb(76, 84, 98), new Point3D(0.0, 1.9, 2.4));
-        root.Children.Add(_ambientLight);
-        root.Children.Add(_keyLight);
-        root.Children.Add(_fillLight);
-        root.Children.Add(_bounceLight);
-        root.Children.Add(_rimLight);
-        root.Children.Add(_cameraFillLight);
+        // Default portrait lighting for textured face rendering.
+        _ambientLight = new AmbientLight(Color.FromRgb(90, 96, 106));
+        _keyLight = new DirectionalLight(Color.FromRgb(236, 228, 220), new Vector3D(-0.55, -0.26, -1.0));
+        _fillLight = new DirectionalLight(Color.FromRgb(134, 156, 198), new Vector3D(0.52, -0.10, -0.45));
+        _bounceLight = new DirectionalLight(Color.FromRgb(112, 94, 80), new Vector3D(0.18, 1.0, 0.15));
+        _rimLight = new DirectionalLight(Color.FromRgb(166, 188, 228), new Vector3D(0.22, -0.08, 1.0));
+        _cameraFillLight = new PointLight(Color.FromRgb(92, 100, 114), new Point3D(0.0, 1.9, 2.4));
+        if (SceneLightingEnabled)
+        {
+            root.Children.Add(_ambientLight);
+            root.Children.Add(_keyLight);
+            root.Children.Add(_fillLight);
+            root.Children.Add(_bounceLight);
+            root.Children.Add(_rimLight);
+            root.Children.Add(_cameraFillLight);
+        }
 
         _cubeMaterial = new DiffuseMaterial(new SolidColorBrush(Color.FromRgb(100, 175, 220)));
         _cubeModel = new GeometryModel3D
@@ -107,10 +245,14 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
         }
 
         UpdateDramaticLighting();
+        UpdateAreaLightWaveOverlay(0);
         _viewport.Children.Add(new ModelVisual3D { Content = root });
+        _viewRoot.Children.Add(_mainLayerHost);
+        _viewRoot.Children.Add(_areaLightWaveOverlay);
+        _viewRoot.Children.Add(_wireframeOverlay);
     }
 
-    public UIElement View => _viewport;
+    public UIElement View => _viewRoot;
 
     public void LoadUsd(string path)
     {
@@ -120,6 +262,9 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
         _isUsdModelLoaded = false;
         _usdPitchBaseDeg = 0;
         _hasFaceOrbitPivot = false;
+        _ghostStyledGeometry.Clear();
+        _wireframeMeshes.Clear();
+        _wireframeOverlay.Data = null;
 
         _baseUsdPath = path ?? string.Empty;
         var pathToLoad = ResolveUsdPathForCurrentAnimation(_baseUsdPath, _currentAnimation);
@@ -136,8 +281,14 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
             _avatarModelGroup.Children.Clear();
             _currentUsdModel = _usdAnimatedPlayer.Model;
             _avatarModelGroup.Children.Add(_currentUsdModel);
+            if (GhostPresentationEnabled)
+            {
+                ApplyGhostMaterialPresentation(_currentUsdModel);
+            }
+            RebuildWireframeOverlay(_currentUsdModel);
             ApplyDefaultUsdOrientation(pathToLoad);
             ApplyUsdCameraPreset(pathToLoad, _currentUsdModel);
+            TryExportProceduralMouthMorphTarget();
         }
         else if (!string.IsNullOrWhiteSpace(pathToLoad)
             && File.Exists(pathToLoad)
@@ -149,6 +300,11 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
             _avatarModelGroup.Children.Clear();
             _currentUsdModel = usdModel;
             _avatarModelGroup.Children.Add(_currentUsdModel);
+            if (GhostPresentationEnabled)
+            {
+                ApplyGhostMaterialPresentation(_currentUsdModel);
+            }
+            RebuildWireframeOverlay(_currentUsdModel);
             ApplyDefaultUsdOrientation(pathToLoad);
             ApplyUsdCameraPreset(pathToLoad, _currentUsdModel);
         }
@@ -162,11 +318,13 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
             _hasFaceOrbitPivot = false;
             SetRotationPivot(new Point3D(0, 0, 0));
             ApplyCubeCameraPreset();
+            RebuildWireframeOverlay(_cubeModel);
         }
 
         SetAnimation("idle");
         UpdateColorFromMood();
         UpdateDramaticLighting();
+        RefreshWireframeOverlay();
     }
 
     public void SetAnimation(string name)
@@ -238,9 +396,12 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
             {
                 var speaking = string.Equals(_currentAnimation, "speaking", StringComparison.OrdinalIgnoreCase);
                 var mouthRhythm = (Math.Sin(nextPulse * 18.0) + 1.0) * 0.5;
-                var mouthOpen = speaking ? (0.18 + (0.82 * mouthRhythm)) : 0.0;
-                var headCompensation = speaking ? (0.10 + (0.25 * mouthRhythm)) : 0.0;
+                var mouthOpen = speaking ? (0.18 + (0.82 * mouthRhythm)) : IdleMouthOpenAmount;
+                var headCompensation = speaking ? (0.10 + (0.25 * mouthRhythm)) : IdleMouthHeadCompensation;
                 _usdAnimatedPlayer.SetProceduralMouthRig(mouthOpen, headCompensation);
+                _usdAnimatedPlayer.SetProceduralBlendshapePair(
+                    GetBlendshape(UniversalBlendshape1Name),
+                    GetBlendshape(UniversalBlendshape2Name));
             }
             _usdAnimatedPlayer?.Update(dt);
         }
@@ -255,6 +416,8 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
         _pulse = nextPulse;
         UpdateColorFromMood();
         UpdateDramaticLighting();
+        UpdateAreaLightWaveOverlay(nextPulse);
+        RefreshWireframeOverlay();
     }
 
     private void Viewport_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -294,6 +457,7 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
         _rotationY.Angle = NormalizeDegrees(_rotationY.Angle + (dx * yawSpeed));
         _rotationX.Angle = Math.Clamp(_rotationX.Angle - (dy * pitchSpeed), pitchBase - 75.0, pitchBase + 75.0);
         UpdateDramaticLighting();
+        RefreshWireframeOverlay();
         e.Handled = true;
     }
 
@@ -316,6 +480,51 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
         }
     }
 
+    private void Viewport_MouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (_camera is null || e.Delta == 0)
+        {
+            return;
+        }
+
+        var lookDirection = _camera.LookDirection;
+        if (lookDirection.LengthSquared < 1e-8 || !IsFiniteVector(lookDirection))
+        {
+            return;
+        }
+
+        var distance = lookDirection.Length;
+        if (!IsFinite(distance) || distance <= 1e-6)
+        {
+            return;
+        }
+
+        var target = _camera.Position + lookDirection;
+        if (!IsFinitePoint(target))
+        {
+            return;
+        }
+
+        var stepCount = e.Delta / 120.0;
+        var zoomFactor = Math.Pow(0.88, stepCount); // wheel up => zoom in
+        var newDistance = Math.Clamp(distance * zoomFactor, 0.12, 40.0);
+
+        var directionUnit = lookDirection;
+        directionUnit.Normalize();
+        var newPosition = target - (directionUnit * newDistance);
+        var newLookDirection = target - newPosition;
+        if (!IsFinitePoint(newPosition) || !IsFiniteVector(newLookDirection) || newLookDirection.LengthSquared < 1e-8)
+        {
+            return;
+        }
+
+        _camera.Position = newPosition;
+        _camera.LookDirection = newLookDirection;
+        UpdateDramaticLighting();
+        RefreshWireframeOverlay();
+        e.Handled = true;
+    }
+
     private void EndViewportDrag()
     {
         _isViewportDragging = false;
@@ -323,6 +532,31 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
         {
             _viewport.ReleaseMouseCapture();
         }
+    }
+
+    private static Brush CreateRadialFrameOpacityMask()
+    {
+        var brush = new RadialGradientBrush
+        {
+            MappingMode = BrushMappingMode.RelativeToBoundingBox,
+            Center = new Point(0.5, 0.5),
+            GradientOrigin = new Point(0.5, 0.5),
+            RadiusX = 0.5,
+            RadiusY = 0.5,
+            SpreadMethod = GradientSpreadMethod.Pad,
+        };
+
+        // Center = 100% opacity, at 80% radius = 80% opacity, edge = 0%.
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb(255, 255, 255, 255), 0.0));
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb((byte)Math.Round(255.0 * RadialFrameFadeMidStopOpacity), 255, 255, 255), RadialFrameFadeMidStopOffset));
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb(0, 255, 255, 255), 1.0));
+
+        if (brush.CanFreeze)
+        {
+            brush.Freeze();
+        }
+
+        return brush;
     }
 
     private void UpdateColorFromMood()
@@ -460,6 +694,7 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
         }
 
         ApplyUsdCameraPreset(_usdPath, _currentUsdModel);
+        RefreshWireframeOverlay();
     }
 
     private void ApplyCubeCameraPreset()
@@ -622,6 +857,7 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
         _camera.LookDirection = lookDirection;
         _camera.UpDirection = _cameraUpDirection;
         _camera.FieldOfView = fieldOfView;
+        RefreshWireframeOverlay();
     }
 
     private void ApplyDefaultUsdOrientation(string usdPath)
@@ -636,6 +872,18 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
     {
         if (_ambientLight is null || _keyLight is null || _fillLight is null || _bounceLight is null || _rimLight is null || _cameraFillLight is null)
         {
+            return;
+        }
+
+        if (!SceneLightingEnabled)
+        {
+            _ambientLight.Color = Colors.Black;
+            _keyLight.Color = Colors.Black;
+            _fillLight.Color = Colors.Black;
+            _bounceLight.Color = Colors.Black;
+            _rimLight.Color = Colors.Black;
+            _cameraFillLight.Color = Colors.Black;
+            _cameraFillLight.Range = 0.0;
             return;
         }
 
@@ -657,17 +905,88 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
         _bounceLight.Direction = bounceDirection;
         _rimLight.Direction = rimDirection;
 
-        // More contrast on profile angles, but keep enough fill to avoid losing the face in shadows.
-        _ambientLight.Color = ScaleColor(Color.FromRgb(76, 82, 94), 0.58 - (0.18 * profile));
-        _keyLight.Color = ScaleColor(Color.FromRgb(255, 236, 212), 0.95 + (0.30 * profile));
-        _fillLight.Color = ScaleColor(Color.FromRgb(116, 150, 228), 0.42 - (0.10 * profile));
-        _bounceLight.Color = ScaleColor(Color.FromRgb(134, 104, 82), 0.18 + (0.04 * (1.0 - profile)));
-        _rimLight.Color = ScaleColor(Color.FromRgb(120, 226, 255), 0.58 + (0.55 * profile));
+        // Default scene light: neutral portrait setup with subtle dynamic contrast on rotation.
+        _ambientLight.Color = ScaleColor(Color.FromRgb(92, 98, 108), 0.78 - (0.06 * profile));
+        _keyLight.Color = ScaleColor(Color.FromRgb(236, 228, 220), 0.92 + (0.14 * profile));
+        _fillLight.Color = ScaleColor(Color.FromRgb(138, 158, 196), 0.46 - (0.10 * profile));
+        _bounceLight.Color = ScaleColor(Color.FromRgb(118, 98, 84), 0.16 + (0.03 * (1.0 - profile)));
+        _rimLight.Color = ScaleColor(Color.FromRgb(168, 188, 226), 0.36 + (0.26 * profile));
 
         var cameraPos = _camera.Position;
         _cameraFillLight.Position = new Point3D(cameraPos.X * 0.15, cameraPos.Y + 0.15, cameraPos.Z + 0.25);
-        _cameraFillLight.Color = ScaleColor(Color.FromRgb(84, 92, 112), 0.32 + (0.08 * (1.0 - profile)));
+        _cameraFillLight.Color = ScaleColor(Color.FromRgb(92, 100, 114), 0.28 + (0.06 * (1.0 - profile)));
         _cameraFillLight.Range = 10.0;
+    }
+
+    private void UpdateAreaLightWaveOverlay(double timeSeconds)
+    {
+        if (_areaLightWaveOverlay is null || _areaLightWaveTranslate is null || _areaLightWaveRotate is null || _areaLightWaveScale is null)
+        {
+            return;
+        }
+
+        if (!AreaLightWaveEffectEnabled)
+        {
+            _areaLightWaveOverlay.Opacity = 0.0;
+            return;
+        }
+
+        var cycle = (timeSeconds * AreaLightWaveSweepCyclesPerSecond) % 1.0;
+        if (cycle < 0)
+        {
+            cycle += 1.0;
+        }
+
+        var pulse = 0.72 + (0.28 * ((Math.Sin(timeSeconds * 1.7) + 1.0) * 0.5));
+        var drift = Math.Sin(timeSeconds * 0.85) * 0.035;
+
+        // Brush transform is in relative coordinates. Sweep beyond edges so the wave enters/exits smoothly.
+        _areaLightWaveTranslate.X = -0.85 + (1.70 * cycle);
+        _areaLightWaveTranslate.Y = drift;
+        _areaLightWaveRotate.Angle = -17.0 + (Math.Sin(timeSeconds * 0.42) * 3.0);
+        _areaLightWaveScale.ScaleX = 1.20 + (Math.Sin(timeSeconds * 0.63) * 0.08);
+        _areaLightWaveScale.ScaleY = 1.10 + (Math.Cos(timeSeconds * 0.57) * 0.05);
+
+        _areaLightWaveOverlay.Opacity = AreaLightWaveBaseOpacity * pulse;
+    }
+
+    private void TryExportProceduralMouthMorphTarget()
+    {
+        if (!AutoExportProceduralMouthMorphTarget || _usdAnimatedPlayer is null || string.IsNullOrWhiteSpace(_usdPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var outputPath = ResolveMorphTargetExportPath();
+            _ = _usdAnimatedPlayer.TryExportProceduralMouthOpenMorphTarget(
+                outputPath,
+                ExportMouthOpenAmount,
+                ExportMouthHeadCompensation);
+        }
+        catch
+        {
+            // Best effort only.
+        }
+    }
+
+    private static string ResolveMorphTargetExportPath()
+    {
+        // Prefer a repo-local usd/morph_targets folder when running from the project.
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            var candidateUsdDir = Path.Combine(current.FullName, "usd");
+            if (Directory.Exists(candidateUsdDir))
+            {
+                return Path.Combine(candidateUsdDir, "morph_targets", "mouth_open_procedural.json");
+            }
+
+            current = current.Parent;
+        }
+
+        return Path.Combine(AppContext.BaseDirectory, "usd_runtime", "morph_targets", "mouth_open_procedural.json");
     }
 
     private void ConfigureOrbitAxes(bool useZAsUp)
@@ -736,6 +1055,613 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
         }
 
         return angle;
+    }
+
+    private void RebuildWireframeOverlay(Model3D model)
+    {
+        _wireframeMeshes.Clear();
+
+        if (!WireframeEnabled)
+        {
+            if (_wireframeOverlay is not null)
+            {
+                _wireframeOverlay.Data = null;
+            }
+            return;
+        }
+
+        CollectWireframeMeshes(model, Transform3D.Identity);
+    }
+
+    private void CollectWireframeMeshes(Model3D model, Transform3D accumulatedTransform)
+    {
+        if (model is Model3DGroup group)
+        {
+            var groupTransform = CombineTransforms(accumulatedTransform, group.Transform);
+            foreach (var child in group.Children)
+            {
+                CollectWireframeMeshes(child, groupTransform);
+            }
+
+            return;
+        }
+
+        if (model is not GeometryModel3D geometryModel || geometryModel.Geometry is not MeshGeometry3D mesh)
+        {
+            return;
+        }
+
+        if (mesh.Positions is null || mesh.Positions.Count == 0 || mesh.TriangleIndices is null || mesh.TriangleIndices.Count < 3)
+        {
+            return;
+        }
+
+        var topology = BuildWireframeTopology(mesh);
+        if (topology is null || topology.EdgePairs.Length == 0)
+        {
+            return;
+        }
+
+        var localTransform = CombineTransforms(accumulatedTransform, geometryModel.Transform);
+        _wireframeMeshes.Add(new WireframeOverlayMesh(mesh, localTransform, topology));
+    }
+
+    private void RefreshWireframeOverlay()
+    {
+        if (!WireframeEnabled || _wireframeOverlay is null || _viewport is null || _camera is null)
+        {
+            return;
+        }
+
+        var width = _viewport.ActualWidth;
+        var height = _viewport.ActualHeight;
+        if (width <= 1.0 || height <= 1.0 || _wireframeMeshes.Count == 0)
+        {
+            _wireframeOverlay.Data = null;
+            return;
+        }
+
+        var stream = new StreamGeometry();
+        using var ctx = stream.Open();
+        var any = false;
+
+        foreach (var overlayMesh in _wireframeMeshes)
+        {
+            var positions = overlayMesh.Mesh.Positions;
+            if (positions is null || positions.Count == 0)
+            {
+                continue;
+            }
+
+            overlayMesh.EnsureCapacity(positions.Count);
+            for (var i = 0; i < positions.Count; i++)
+            {
+                var point = positions[i];
+                point = TransformPointSafe(overlayMesh.LocalTransform, point);
+                point = TransformPointSafe(_avatarModelGroup.Transform, point);
+                overlayMesh.World[i] = point;
+
+                if (TryProjectPointToViewport(point, width, height, out var screen))
+                {
+                    overlayMesh.Visible[i] = true;
+                    overlayMesh.Projected[i] = screen;
+                }
+                else
+                {
+                    overlayMesh.Visible[i] = false;
+                }
+            }
+
+            if (WireframeBackfaceCullingEnabled)
+            {
+                var triangles = overlayMesh.Triangles;
+                var triangleCount = triangles.Length / 3;
+                overlayMesh.EnsureTriangleFacingCapacity(triangleCount);
+                for (var triangleIndex = 0; triangleIndex < triangleCount; triangleIndex++)
+                {
+                    overlayMesh.TriangleFrontFacing[triangleIndex] = IsTriangleFrontFacing(overlayMesh, triangleIndex);
+                }
+            }
+
+            var edgePairs = overlayMesh.EdgePairs;
+            for (var edgeIndex = 0; edgeIndex + 1 < edgePairs.Length; edgeIndex += 2)
+            {
+                if (WireframeBackfaceCullingEnabled)
+                {
+                    var edgeSlot = edgeIndex / 2;
+                    var t0 = overlayMesh.EdgeFirstTriangleByEdge[edgeSlot];
+                    var t1 = overlayMesh.EdgeSecondTriangleByEdge[edgeSlot];
+                    var front0 = t0 >= 0 && t0 < overlayMesh.TriangleFrontFacing.Length && overlayMesh.TriangleFrontFacing[t0];
+                    var front1 = t1 >= 0 && t1 < overlayMesh.TriangleFrontFacing.Length && overlayMesh.TriangleFrontFacing[t1];
+                    if (!front0 && !front1)
+                    {
+                        continue;
+                    }
+                }
+
+                var a = edgePairs[edgeIndex];
+                var b = edgePairs[edgeIndex + 1];
+                if (a < 0 || b < 0 || a >= overlayMesh.Visible.Length || b >= overlayMesh.Visible.Length)
+                {
+                    continue;
+                }
+
+                if (!overlayMesh.Visible[a] || !overlayMesh.Visible[b])
+                {
+                    continue;
+                }
+
+                var p0 = overlayMesh.Projected[a];
+                var p1 = overlayMesh.Projected[b];
+                if (!LineMightIntersectViewport(p0, p1, width, height))
+                {
+                    continue;
+                }
+
+                ctx.BeginFigure(p0, isFilled: false, isClosed: false);
+                ctx.LineTo(p1, isStroked: true, isSmoothJoin: false);
+                any = true;
+            }
+        }
+
+        if (!any)
+        {
+            _wireframeOverlay.Data = null;
+            return;
+        }
+
+        if (stream.CanFreeze)
+        {
+            stream.Freeze();
+        }
+
+        _wireframeOverlay.Data = stream;
+    }
+
+    private bool IsTriangleFrontFacing(WireframeOverlayMesh overlayMesh, int triangleIndex)
+    {
+        var triangles = overlayMesh.Triangles;
+        var triOffset = triangleIndex * 3;
+        if (triOffset + 2 >= triangles.Length)
+        {
+            return false;
+        }
+
+        var i0 = triangles[triOffset];
+        var i1 = triangles[triOffset + 1];
+        var i2 = triangles[triOffset + 2];
+        if (i0 < 0 || i1 < 0 || i2 < 0
+            || i0 >= overlayMesh.World.Length
+            || i1 >= overlayMesh.World.Length
+            || i2 >= overlayMesh.World.Length)
+        {
+            return false;
+        }
+
+        // Prefer screen-space winding when projected vertices are available.
+        if (i0 < overlayMesh.Visible.Length && i1 < overlayMesh.Visible.Length && i2 < overlayMesh.Visible.Length
+            && overlayMesh.Visible[i0] && overlayMesh.Visible[i1] && overlayMesh.Visible[i2])
+        {
+            var p0 = overlayMesh.Projected[i0];
+            var p1 = overlayMesh.Projected[i1];
+            var p2 = overlayMesh.Projected[i2];
+            var signedArea2 = ((p1.X - p0.X) * (p2.Y - p0.Y)) - ((p1.Y - p0.Y) * (p2.X - p0.X));
+            if (IsFinite(signedArea2) && Math.Abs(signedArea2) > 1e-8)
+            {
+                // Screen Y grows downward, so front-facing CCW triangles project with negative signed area.
+                return signedArea2 < 0.0;
+            }
+        }
+
+        var w0 = overlayMesh.World[i0];
+        var w1 = overlayMesh.World[i1];
+        var w2 = overlayMesh.World[i2];
+        var normal = Vector3D.CrossProduct(w1 - w0, w2 - w0);
+        if (normal.LengthSquared <= 1e-12 || !IsFiniteVector(normal))
+        {
+            return false;
+        }
+
+        var center = new Point3D(
+            (w0.X + w1.X + w2.X) / 3.0,
+            (w0.Y + w1.Y + w2.Y) / 3.0,
+            (w0.Z + w1.Z + w2.Z) / 3.0);
+        var toCamera = _camera.Position - center;
+        return Vector3D.DotProduct(normal, toCamera) > 0.0;
+    }
+
+    private bool TryProjectPointToViewport(Point3D worldPoint, double viewportWidth, double viewportHeight, out Point screenPoint)
+    {
+        screenPoint = default;
+
+        var forward = _camera.LookDirection;
+        if (forward.LengthSquared < 1e-8 || !IsFiniteVector(forward))
+        {
+            return false;
+        }
+
+        forward.Normalize();
+
+        var up = _camera.UpDirection;
+        if (up.LengthSquared < 1e-8 || !IsFiniteVector(up))
+        {
+            up = new Vector3D(0, 1, 0);
+        }
+
+        up -= forward * Vector3D.DotProduct(up, forward);
+        if (up.LengthSquared < 1e-8 || !IsFiniteVector(up))
+        {
+            up = Math.Abs(forward.Y) < 0.98 ? new Vector3D(0, 1, 0) : new Vector3D(0, 0, 1);
+            up -= forward * Vector3D.DotProduct(up, forward);
+            if (up.LengthSquared < 1e-8)
+            {
+                return false;
+            }
+        }
+        up.Normalize();
+
+        var right = Vector3D.CrossProduct(forward, up);
+        if (right.LengthSquared < 1e-8 || !IsFiniteVector(right))
+        {
+            return false;
+        }
+        right.Normalize();
+        up = Vector3D.CrossProduct(right, forward);
+        up.Normalize();
+
+        var toPoint = worldPoint - _camera.Position;
+        var depth = Vector3D.DotProduct(toPoint, forward);
+        if (depth <= 0.01 || !IsFinite(depth))
+        {
+            return false;
+        }
+
+        var x = Vector3D.DotProduct(toPoint, right);
+        var y = Vector3D.DotProduct(toPoint, up);
+
+        var verticalFovRad = DegreesToRadians(Math.Clamp(_camera.FieldOfView, 1.0, 179.0));
+        var tanHalfFov = Math.Tan(verticalFovRad * 0.5);
+        if (!IsFinite(tanHalfFov) || tanHalfFov <= 1e-8)
+        {
+            return false;
+        }
+
+        var aspect = viewportWidth / Math.Max(1.0, viewportHeight);
+        var halfHeight = depth * tanHalfFov;
+        var halfWidth = halfHeight * aspect;
+        if (halfWidth <= 1e-8 || halfHeight <= 1e-8)
+        {
+            return false;
+        }
+
+        var ndcX = x / halfWidth;
+        var ndcY = y / halfHeight;
+        if (!IsFinite(ndcX) || !IsFinite(ndcY))
+        {
+            return false;
+        }
+
+        screenPoint = new Point(
+            ((ndcX * 0.5) + 0.5) * viewportWidth,
+            ((-ndcY * 0.5) + 0.5) * viewportHeight);
+        return IsFinitePoint2D(screenPoint);
+    }
+
+    private static Transform3D CombineTransforms(Transform3D? first, Transform3D? second)
+    {
+        var firstHasValue = HasNonIdentityTransform(first);
+        var secondHasValue = HasNonIdentityTransform(second);
+
+        if (!firstHasValue && !secondHasValue)
+        {
+            return Transform3D.Identity;
+        }
+
+        if (firstHasValue && !secondHasValue)
+        {
+            return first!;
+        }
+
+        if (!firstHasValue)
+        {
+            return second!;
+        }
+
+        var group = new Transform3DGroup();
+        group.Children.Add(first!);
+        group.Children.Add(second!);
+        return group;
+    }
+
+    private static bool HasNonIdentityTransform(Transform3D? transform)
+    {
+        if (transform is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            return !transform.Value.IsIdentity;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    private static Point3D TransformPointSafe(Transform3D? transform, Point3D point)
+    {
+        if (!HasNonIdentityTransform(transform))
+        {
+            return point;
+        }
+
+        try
+        {
+            return transform!.Transform(point);
+        }
+        catch
+        {
+            return point;
+        }
+    }
+
+    private static WireframeTopology? BuildWireframeTopology(MeshGeometry3D mesh)
+    {
+        var triangles = mesh.TriangleIndices;
+        if (triangles is null || triangles.Count < 3)
+        {
+            return null;
+        }
+
+        var triangleValues = new int[triangles.Count];
+        triangles.CopyTo(triangleValues, 0);
+
+        var edgePairs = new List<int>(triangles.Count * 2);
+        var edgeFirstTriangleByEdge = new List<int>(triangles.Count);
+        var edgeSecondTriangleByEdge = new List<int>(triangles.Count);
+        var edgeSlotByKey = new Dictionary<ulong, int>(triangles.Count);
+        for (var i = 0; i + 2 < triangleValues.Length; i += 3)
+        {
+            var triangleIndex = i / 3;
+            AddEdge(triangleValues[i], triangleValues[i + 1], triangleIndex);
+            AddEdge(triangleValues[i + 1], triangleValues[i + 2], triangleIndex);
+            AddEdge(triangleValues[i + 2], triangleValues[i], triangleIndex);
+        }
+
+        if (edgePairs.Count == 0)
+        {
+            return null;
+        }
+
+        return new WireframeTopology(
+            triangleValues,
+            edgePairs.ToArray(),
+            edgeFirstTriangleByEdge.ToArray(),
+            edgeSecondTriangleByEdge.ToArray());
+
+        void AddEdge(int a, int b, int triangleIndex)
+        {
+            if (a == b || a < 0 || b < 0)
+            {
+                return;
+            }
+
+            var min = Math.Min(a, b);
+            var max = Math.Max(a, b);
+            var key = ((ulong)(uint)min << 32) | (uint)max;
+            if (edgeSlotByKey.TryGetValue(key, out var existingSlot))
+            {
+                if (existingSlot >= 0
+                    && existingSlot < edgeSecondTriangleByEdge.Count
+                    && edgeSecondTriangleByEdge[existingSlot] < 0)
+                {
+                    edgeSecondTriangleByEdge[existingSlot] = triangleIndex;
+                }
+                return;
+            }
+
+            var edgeSlot = edgePairs.Count / 2;
+            edgeSlotByKey[key] = edgeSlot;
+
+            edgePairs.Add(a);
+            edgePairs.Add(b);
+            edgeFirstTriangleByEdge.Add(triangleIndex);
+            edgeSecondTriangleByEdge.Add(-1);
+        }
+    }
+
+    private static bool LineMightIntersectViewport(Point p0, Point p1, double width, double height)
+    {
+        const double margin = 64.0;
+        var minX = Math.Min(p0.X, p1.X);
+        var maxX = Math.Max(p0.X, p1.X);
+        var minY = Math.Min(p0.Y, p1.Y);
+        var maxY = Math.Max(p0.Y, p1.Y);
+
+        return maxX >= -margin
+               && maxY >= -margin
+               && minX <= width + margin
+               && minY <= height + margin;
+    }
+
+    private static bool IsFinitePoint2D(in Point point)
+    {
+        return IsFinite(point.X) && IsFinite(point.Y);
+    }
+
+    private void ApplyGhostMaterialPresentation(Model3D model)
+    {
+        foreach (var geometry in EnumerateGeometryModels(model))
+        {
+            if (!_ghostStyledGeometry.Add(geometry))
+            {
+                continue;
+            }
+
+            geometry.Material = CreateGhostMaterial(geometry.Material);
+            geometry.BackMaterial = CreateGhostMaterial(geometry.BackMaterial ?? geometry.Material);
+        }
+    }
+
+    private static IEnumerable<GeometryModel3D> EnumerateGeometryModels(Model3D model)
+    {
+        if (model is GeometryModel3D geometry)
+        {
+            yield return geometry;
+            yield break;
+        }
+
+        if (model is not Model3DGroup group)
+        {
+            yield break;
+        }
+
+        foreach (var child in group.Children)
+        {
+            foreach (var item in EnumerateGeometryModels(child))
+            {
+                yield return item;
+            }
+        }
+    }
+
+    private static Material CreateGhostMaterial(Material? source)
+    {
+        var hasTexture = MaterialContainsImageBrush(source);
+        var group = new MaterialGroup();
+        group.Children.Add(CloneMaterialForGhostBase(source));
+
+        var glowBrush = new SolidColorBrush(hasTexture
+            ? Color.FromArgb(28, 108, 235, 235)
+            : Color.FromArgb(86, 116, 255, 240));
+        var specBrush = new SolidColorBrush(hasTexture
+            ? Color.FromArgb(76, 220, 245, 250)
+            : Color.FromArgb(110, 230, 255, 250));
+        var emissive = new EmissiveMaterial(glowBrush);
+        var specular = new SpecularMaterial(specBrush, hasTexture ? 52 : 84);
+        if (glowBrush.CanFreeze) glowBrush.Freeze();
+        if (specBrush.CanFreeze) specBrush.Freeze();
+        if (emissive.CanFreeze) emissive.Freeze();
+        if (specular.CanFreeze) specular.Freeze();
+        group.Children.Add(emissive);
+        group.Children.Add(specular);
+
+        if (group.CanFreeze)
+        {
+            group.Freeze();
+        }
+
+        return group;
+    }
+
+    private static Material CloneMaterialForGhostBase(Material? source)
+    {
+        if (source is null)
+        {
+            var brush = new SolidColorBrush(Color.FromArgb(168, 120, 180, 220));
+            if (brush.CanFreeze) brush.Freeze();
+            var diffuse = new DiffuseMaterial(brush);
+            if (diffuse.CanFreeze) diffuse.Freeze();
+            return diffuse;
+        }
+
+        var clone = (Material)source.CloneCurrentValue();
+        AdjustMaterialForGhost(clone);
+        if (clone.CanFreeze)
+        {
+            clone.Freeze();
+        }
+
+        return clone;
+    }
+
+    private static void AdjustMaterialForGhost(Material material)
+    {
+        switch (material)
+        {
+            case MaterialGroup group:
+                foreach (var child in group.Children)
+                {
+                    AdjustMaterialForGhost(child);
+                }
+                break;
+            case DiffuseMaterial diffuse:
+                diffuse.Brush = diffuse.Brush is ImageBrush
+                    ? CloneBrushForGhost(diffuse.Brush, 0.98, tintTowardGhost: false)
+                    : CloneBrushForGhost(diffuse.Brush, 0.58, tintTowardGhost: true);
+                break;
+            case EmissiveMaterial emissive:
+                emissive.Brush = emissive.Brush is ImageBrush
+                    ? CloneBrushForGhost(emissive.Brush, 0.18, tintTowardGhost: false)
+                    : CloneBrushForGhost(emissive.Brush, 0.35, tintTowardGhost: true);
+                break;
+            case SpecularMaterial specular:
+                specular.Brush = CloneBrushForGhost(specular.Brush, 0.55, tintTowardGhost: true);
+                specular.SpecularPower = Math.Max(specular.SpecularPower, 42);
+                break;
+        }
+    }
+
+    private static Brush CloneBrushForGhost(Brush? brush, double opacityMultiplier, bool tintTowardGhost)
+    {
+        if (brush is null)
+        {
+            var fallback = new SolidColorBrush(Color.FromArgb(170, 130, 190, 232));
+            if (fallback.CanFreeze) fallback.Freeze();
+            return fallback;
+        }
+
+        var clone = (Brush)brush.CloneCurrentValue();
+        var effectiveOpacityMultiplier = brush is ImageBrush ? Math.Max(opacityMultiplier, 0.84) : opacityMultiplier;
+        clone.Opacity = Math.Clamp(clone.Opacity * effectiveOpacityMultiplier, 0.10, 0.98);
+
+        if (clone is SolidColorBrush solid)
+        {
+            var c = solid.Color;
+            if (tintTowardGhost)
+            {
+                c = LerpColor(c, Color.FromRgb(128, 236, 245), 0.28);
+            }
+            solid.Color = Color.FromArgb(c.A, c.R, c.G, c.B);
+        }
+        else if (clone is ImageBrush imageBrush)
+        {
+            RenderOptions.SetBitmapScalingMode(imageBrush, BitmapScalingMode.HighQuality);
+            RenderOptions.SetCachingHint(imageBrush, CachingHint.Cache);
+            RenderOptions.SetCacheInvalidationThresholdMinimum(imageBrush, 0.5);
+            RenderOptions.SetCacheInvalidationThresholdMaximum(imageBrush, 2.0);
+        }
+
+        return clone;
+    }
+
+    private static Color LerpColor(Color a, Color b, double t)
+    {
+        t = Math.Clamp(t, 0.0, 1.0);
+        var r = a.R + ((b.R - a.R) * t);
+        var g = a.G + ((b.G - a.G) * t);
+        var bl = a.B + ((b.B - a.B) * t);
+        var alpha = a.A + ((b.A - a.A) * t);
+        return Color.FromArgb(ClampToByte(alpha), ClampToByte(r), ClampToByte(g), ClampToByte(bl));
+    }
+
+    private static bool MaterialContainsImageBrush(Material? material)
+    {
+        if (material is null)
+        {
+            return false;
+        }
+
+        return material switch
+        {
+            DiffuseMaterial d => d.Brush is ImageBrush,
+            EmissiveMaterial e => e.Brush is ImageBrush,
+            SpecularMaterial s => s.Brush is ImageBrush,
+            MaterialGroup g => g.Children.Any(MaterialContainsImageBrush),
+            _ => false
+        };
     }
 
     private static bool IsFiniteBounds(in Rect3D bounds)
@@ -810,5 +1736,70 @@ public sealed class CubeAvatarRenderer : IAvatarRenderer
 
         var clipCandidate = Path.Combine(directory, $"{characterName}.{clipSuffix}{extension}");
         return File.Exists(clipCandidate) ? clipCandidate : baseUsdPath;
+    }
+
+    private sealed class WireframeTopology
+    {
+        public WireframeTopology(int[] triangles, int[] edgePairs, int[] edgeFirstTriangleByEdge, int[] edgeSecondTriangleByEdge)
+        {
+            Triangles = triangles;
+            EdgePairs = edgePairs;
+            EdgeFirstTriangleByEdge = edgeFirstTriangleByEdge;
+            EdgeSecondTriangleByEdge = edgeSecondTriangleByEdge;
+        }
+
+        public int[] Triangles { get; }
+        public int[] EdgePairs { get; }
+        public int[] EdgeFirstTriangleByEdge { get; }
+        public int[] EdgeSecondTriangleByEdge { get; }
+    }
+
+    private sealed class WireframeOverlayMesh
+    {
+        public WireframeOverlayMesh(MeshGeometry3D mesh, Transform3D localTransform, WireframeTopology topology)
+        {
+            Mesh = mesh;
+            LocalTransform = localTransform;
+            _topology = topology;
+        }
+
+        private readonly WireframeTopology _topology;
+
+        public MeshGeometry3D Mesh { get; }
+        public Transform3D LocalTransform { get; }
+        public int[] EdgePairs => _topology.EdgePairs;
+        public int[] Triangles => _topology.Triangles;
+        public int[] EdgeFirstTriangleByEdge => _topology.EdgeFirstTriangleByEdge;
+        public int[] EdgeSecondTriangleByEdge => _topology.EdgeSecondTriangleByEdge;
+        public Point[] Projected { get; private set; } = Array.Empty<Point>();
+        public Point3D[] World { get; private set; } = Array.Empty<Point3D>();
+        public bool[] Visible { get; private set; } = Array.Empty<bool>();
+        public bool[] TriangleFrontFacing { get; private set; } = Array.Empty<bool>();
+
+        public void EnsureCapacity(int vertexCount)
+        {
+            if (Projected.Length != vertexCount)
+            {
+                Projected = new Point[vertexCount];
+            }
+
+            if (World.Length != vertexCount)
+            {
+                World = new Point3D[vertexCount];
+            }
+
+            if (Visible.Length != vertexCount)
+            {
+                Visible = new bool[vertexCount];
+            }
+        }
+
+        public void EnsureTriangleFacingCapacity(int triangleCount)
+        {
+            if (TriangleFrontFacing.Length != triangleCount)
+            {
+                TriangleFrontFacing = new bool[triangleCount];
+            }
+        }
     }
 }

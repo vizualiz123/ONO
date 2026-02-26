@@ -16,6 +16,9 @@ namespace AvatarDesktop;
 
 public partial class MainWindow : Window
 {
+    private static readonly bool UniversalMorphBlendUiEnabled = false;
+    private const string UniversalBlendshape1Name = "blendshape_1";
+    private const string UniversalBlendshape2Name = "blendshape_2";
     private readonly ObservableCollection<string> _logs = new();
     private readonly ILmStudioClient _lmStudioClient;
     private readonly IOpenAiChatClient _openAiChatClient;
@@ -33,7 +36,7 @@ public partial class MainWindow : Window
     private bool _isBusy;
     private string _currentAvatarUsdPath = string.Empty;
     private bool _rendererPlaceholderNoticeLogged;
-    private static readonly bool WidgetMirrorEnabled = false;
+    private static readonly bool WidgetMirrorEnabled = true;
 
     public MainWindow()
     {
@@ -64,6 +67,7 @@ public partial class MainWindow : Window
     {
         var config = _configService.Load(out var warning);
         ApplyConfigToUi(config);
+        ApplyUniversalMorphBlendFromUi(logChange: false);
 
         if (!string.IsNullOrWhiteSpace(warning))
         {
@@ -84,6 +88,11 @@ public partial class MainWindow : Window
         }
 
         _renderTimer.Start();
+
+        if (WidgetMirrorEnabled && _widgetWindow is null)
+        {
+            OpenWidgetWindow();
+        }
     }
 
     private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -149,6 +158,22 @@ public partial class MainWindow : Window
         }
 
         ReloadAvatarUsdSelection(logSource: "Preset changed");
+    }
+
+    private void UniversalMorphBlendSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!UniversalMorphBlendUiEnabled)
+        {
+            return;
+        }
+
+        if (!IsLoaded)
+        {
+            UpdateUniversalMorphBlendText();
+            return;
+        }
+
+        ApplyUniversalMorphBlendFromUi(logChange: false);
     }
 
     private void WidgetModeButton_Click(object sender, RoutedEventArgs e)
@@ -459,6 +484,7 @@ public partial class MainWindow : Window
         var avatarUsdPath = GetOrResolveAvatarUsdPath();
         widgetRenderer.LoadUsd(avatarUsdPath);
         widgetRenderer.SetAnimation(GetAnimationNameForState(_animationController.State));
+        ApplyUniversalMorphBlendFromUi(logChange: false);
 
         _widgetWindow = widgetWindow;
         widgetWindow.Show();
@@ -698,6 +724,7 @@ public partial class MainWindow : Window
             _widgetRenderer.LoadUsd(avatarUsdPath);
             _widgetRenderer.SetAnimation(GetAnimationNameForState(_animationController.State));
         }
+        ApplyUniversalMorphBlendFromUi(logChange: false);
 
         UpdateRendererInfoText(avatarUsdPath);
 
@@ -823,6 +850,49 @@ public partial class MainWindow : Window
         }
 
         return null;
+    }
+
+    private void ApplyUniversalMorphBlendFromUi(bool logChange)
+    {
+        if (!UniversalMorphBlendUiEnabled)
+        {
+            _avatarRenderer.SetBlendshape(UniversalBlendshape1Name, 0.0);
+            _avatarRenderer.SetBlendshape(UniversalBlendshape2Name, 0.0);
+            if (UniversalMorphBlendValueTextBlock is not null)
+            {
+                UniversalMorphBlendValueTextBlock.Text = "off";
+            }
+            return;
+        }
+
+        if (UniversalMorphBlendSlider is null)
+        {
+            return;
+        }
+
+        var t = Math.Clamp(UniversalMorphBlendSlider.Value, 0.0, 1.0);
+        var blendshape1Weight = 1.0 - t;
+        var blendshape2Weight = t;
+
+        _avatarRenderer.SetBlendshape(UniversalBlendshape1Name, blendshape1Weight);
+        _avatarRenderer.SetBlendshape(UniversalBlendshape2Name, blendshape2Weight);
+        UpdateUniversalMorphBlendText();
+
+        if (logChange)
+        {
+            AddLog($"[Morph] {UniversalBlendshape1Name}={blendshape1Weight:0.00}, {UniversalBlendshape2Name}={blendshape2Weight:0.00}");
+        }
+    }
+
+    private void UpdateUniversalMorphBlendText()
+    {
+        if (UniversalMorphBlendSlider is null || UniversalMorphBlendValueTextBlock is null)
+        {
+            return;
+        }
+
+        var t = Math.Clamp(UniversalMorphBlendSlider.Value, 0.0, 1.0);
+        UniversalMorphBlendValueTextBlock.Text = $"{(1.0 - t):0.00} / {t:0.00}";
     }
 
     private static string ResolveAvatarUsdPath()

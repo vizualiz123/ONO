@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
@@ -31,6 +32,8 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
     private readonly bool _isAnimated;
     private double _proceduralMouthOpen;
     private double _proceduralHeadCompensation;
+    private double _proceduralBlendshape1;
+    private double _proceduralBlendshape2;
     private double _currentTime;
     private bool _disposed;
 
@@ -76,6 +79,8 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
         _isAnimated = isAnimated;
         _proceduralMouthOpen = 0;
         _proceduralHeadCompensation = 0;
+        _proceduralBlendshape1 = 0;
+        _proceduralBlendshape2 = 0;
         _currentTime = timeStart;
     }
 
@@ -92,6 +97,98 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
 
         _proceduralMouthOpen = Math.Clamp(mouthOpen, 0, 1);
         _proceduralHeadCompensation = Math.Clamp(headCompensation, 0, 1);
+    }
+
+    public void SetProceduralBlendshapePair(double blendshape1, double blendshape2)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _proceduralBlendshape1 = Math.Clamp(blendshape1, 0, 1);
+        _proceduralBlendshape2 = Math.Clamp(blendshape2, 0, 1);
+    }
+
+    public bool TryExportProceduralMouthOpenMorphTarget(string outputPath, double mouthOpen, double headCompensation)
+    {
+        if (_disposed || string.IsNullOrWhiteSpace(outputPath) || _meshes.Count == 0)
+        {
+            return false;
+        }
+
+        var previousMouthOpen = _proceduralMouthOpen;
+        var previousHeadComp = _proceduralHeadCompensation;
+        var previousBlendshape1 = _proceduralBlendshape1;
+        var previousBlendshape2 = _proceduralBlendshape2;
+        var previousTime = _currentTime;
+
+        try
+        {
+            SetProceduralBlendshapePair(0.0, 0.0);
+            SetProceduralMouthRig(0.0, 0.0);
+            ApplyPose(new UsdTimeCode(_timeStart));
+            var neutralSnapshots = CaptureNeutralWorkingPointSnapshots();
+            if (neutralSnapshots.Count == 0)
+            {
+                TryWriteMorphExportDiagnostic(outputPath, "No neutral mesh snapshots were captured.");
+                return false;
+            }
+
+            SetProceduralMouthRig(mouthOpen, headCompensation);
+            ApplyPose(new UsdTimeCode(_timeStart));
+
+            var payload = BuildMorphTargetExportPayload(outputPath, mouthOpen, headCompensation, neutralSnapshots);
+            if (payload.meshes.Count == 0)
+            {
+                TryWriteMorphExportDiagnostic(outputPath, "No non-zero deltas found for mouth_open export.");
+                return false;
+            }
+
+            var directory = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+            File.WriteAllText(outputPath, json);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            TryWriteMorphExportDiagnostic(outputPath, ex.ToString());
+            return false;
+        }
+        finally
+        {
+            SetProceduralBlendshapePair(previousBlendshape1, previousBlendshape2);
+            SetProceduralMouthRig(previousMouthOpen, previousHeadComp);
+            _currentTime = previousTime;
+            ApplyPose(new UsdTimeCode(previousTime));
+        }
+    }
+
+    private static void TryWriteMorphExportDiagnostic(string outputPath, string text)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var errorPath = Path.ChangeExtension(outputPath, ".error.txt");
+            File.WriteAllText(errorPath, text ?? string.Empty);
+        }
+        catch
+        {
+            // Best effort only.
+        }
     }
 
     public static bool TryCreate(string usdPath, Material fallbackMaterial, out UsdWpfSkinnedAvatarPlayer? player)
@@ -324,7 +421,14 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
 
             foreach (var mesh in _meshes)
             {
-                mesh.Update(_stage, _xformCache, _jointSkinXforms, _axisMode);
+                mesh.Update(
+                    _stage,
+                    _xformCache,
+                    _jointSkinXforms,
+                    _axisMode,
+                    _proceduralMouthOpen,
+                    _proceduralBlendshape1,
+                    _proceduralBlendshape2);
             }
         }
         catch
@@ -364,6 +468,50 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
             var headPitchDeg = 1.6 * headComp;
             ApplyLocalDelta(_headJointIndex, headPitchDeg, 0, 0);
         }
+    }
+
+    private Dictionary<string, MorphTargetReferenceMesh> CaptureNeutralWorkingPointSnapshots()
+    {
+        var snapshots = new Dictionary<string, MorphTargetReferenceMesh>(StringComparer.Ordinal);
+        foreach (var mesh in _meshes)
+        {
+            if (mesh.TryCaptureWorkingPointSnapshot(out var snapshot) && !string.IsNullOrWhiteSpace(snapshot.primPath))
+            {
+                snapshots[snapshot.primPath] = snapshot;
+            }
+        }
+
+        return snapshots;
+    }
+
+    private MorphTargetExportPayload BuildMorphTargetExportPayload(
+        string outputPath,
+        double mouthOpen,
+        double headCompensation,
+        IReadOnlyDictionary<string, MorphTargetReferenceMesh> neutralSnapshots)
+    {
+        const double deltaEpsilon = 1e-5;
+
+        var meshes = new List<MorphTargetMeshPayload>(_meshes.Count);
+        foreach (var mesh in _meshes)
+        {
+            if (!mesh.TryBuildMorphTargetPayload(neutralSnapshots, deltaEpsilon, out var meshPayload))
+            {
+                continue;
+            }
+
+            meshes.Add(meshPayload);
+        }
+
+        return new MorphTargetExportPayload(
+            name: "mouth_open",
+            sourceUsd: _stage.GetRootLayer()?.GetRealPath() ?? string.Empty,
+            outputPath: Path.GetFullPath(outputPath),
+            generatedUtc: DateTime.UtcNow.ToString("O"),
+            frameTime: _timeStart,
+            mouthOpen: mouthOpen,
+            headCompensation: headCompensation,
+            meshes: meshes);
     }
 
     private void ApplyLocalDelta(int jointIndex, double pitchXDegrees, double translateY, double translateZ)
@@ -964,6 +1112,75 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
         public MeshGeometry3D MeshGeometry { get; }
         public GeometryModel3D Model { get; }
 
+        public bool TryCaptureWorkingPointSnapshot(out MorphTargetReferenceMesh snapshot)
+        {
+            snapshot = default!;
+
+            var pointCount = (int)_workingPoints.size();
+            if (pointCount <= 0 || string.IsNullOrWhiteSpace(_primPath))
+            {
+                return false;
+            }
+
+            var coordinates = new double[pointCount * 3];
+            for (var i = 0; i < pointCount; i++)
+            {
+                var point = _workingPoints[i];
+                var offset = i * 3;
+                coordinates[offset] = point[0];
+                coordinates[offset + 1] = point[1];
+                coordinates[offset + 2] = point[2];
+            }
+
+            snapshot = new MorphTargetReferenceMesh(_primPath, pointCount, coordinates);
+            return true;
+        }
+
+        public bool TryBuildMorphTargetPayload(
+            IReadOnlyDictionary<string, MorphTargetReferenceMesh> neutralSnapshots,
+            double deltaEpsilon,
+            out MorphTargetMeshPayload payload)
+        {
+            payload = default!;
+
+            var pointCount = (int)_workingPoints.size();
+            if (pointCount <= 0 || string.IsNullOrWhiteSpace(_primPath))
+            {
+                return false;
+            }
+
+            if (!neutralSnapshots.TryGetValue(_primPath, out var neutral)
+                || neutral.pointCount != pointCount
+                || neutral.coordinates.Length < pointCount * 3)
+            {
+                return false;
+            }
+
+            var deltas = new List<MorphTargetPointDeltaPayload>();
+            for (var i = 0; i < pointCount; i++)
+            {
+                var deformedPoint = _workingPoints[i];
+                var offset = i * 3;
+                var dx = (double)deformedPoint[0] - neutral.coordinates[offset];
+                var dy = (double)deformedPoint[1] - neutral.coordinates[offset + 1];
+                var dz = (double)deformedPoint[2] - neutral.coordinates[offset + 2];
+                if (Math.Abs(dx) <= deltaEpsilon && Math.Abs(dy) <= deltaEpsilon && Math.Abs(dz) <= deltaEpsilon)
+                {
+                    continue;
+                }
+
+                deltas.Add(new MorphTargetPointDeltaPayload(i, dx, dy, dz));
+            }
+
+            if (deltas.Count == 0)
+            {
+                return false;
+            }
+
+            payload = new MorphTargetMeshPayload(_primPath, pointCount, deltas);
+            return true;
+        }
+
         public static MeshRuntime Create(
             UsdPrim prim,
             MeshGeometry3D meshGeometry,
@@ -1048,7 +1265,14 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
                 remappedJointSkinXforms);
         }
 
-        public void Update(UsdStage stage, UsdGeomXformCache xformCache, VtMatrix4dArray jointSkinXforms, UsdWpfMeshLoader.AxisConversionMode axisMode)
+        public void Update(
+            UsdStage stage,
+            UsdGeomXformCache xformCache,
+            VtMatrix4dArray jointSkinXforms,
+            UsdWpfMeshLoader.AxisConversionMode axisMode,
+            double proceduralMouthOpen,
+            double proceduralBlendshape1,
+            double proceduralBlendshape2)
         {
             var pointCount = (int)_basePoints.size();
             for (var i = 0; i < pointCount; i++)
@@ -1077,6 +1301,9 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
 
                 _ = UsdSkel.UsdSkelSkinPoints(_skinningMethod, _geomBindTransform, xformsForMesh, _jointIndices, _jointWeights, _numInfluencesPerComponent, _workingPoints);
             }
+
+            ApplyProceduralMouthMorphFallbackToWorkingPoints(proceduralMouthOpen);
+            ApplyProceduralUniversalBlendshapePairFallbackToWorkingPoints(proceduralBlendshape1, proceduralBlendshape2);
 
             if (string.IsNullOrWhiteSpace(_primPath))
             {
@@ -1181,6 +1408,210 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
             }
         }
 
+        private void ApplyProceduralMouthMorphFallbackToWorkingPoints(double mouthOpen)
+        {
+            if (mouthOpen <= 1e-4)
+            {
+                return;
+            }
+
+            var pointCount = (int)_workingPoints.size();
+            if (pointCount <= 0)
+            {
+                return;
+            }
+
+            var minX = double.PositiveInfinity;
+            var maxX = double.NegativeInfinity;
+            var minY = double.PositiveInfinity;
+            var maxY = double.NegativeInfinity;
+            var minZ = double.PositiveInfinity;
+            var maxZ = double.NegativeInfinity;
+
+            for (var i = 0; i < pointCount; i++)
+            {
+                var p = _workingPoints[i];
+                minX = Math.Min(minX, p[0]); maxX = Math.Max(maxX, p[0]);
+                minY = Math.Min(minY, p[1]); maxY = Math.Max(maxY, p[1]);
+                minZ = Math.Min(minZ, p[2]); maxZ = Math.Max(maxZ, p[2]);
+            }
+
+            var sizeX = Math.Max(1e-6, maxX - minX);
+            var sizeY = Math.Max(1e-6, maxY - minY);
+            var sizeZ = Math.Max(1e-6, maxZ - minZ);
+
+            var verticalAxis = sizeY >= sizeZ ? 1 : 2;
+            var depthAxis = verticalAxis == 1 ? 2 : 1;
+            var verticalMin = verticalAxis == 1 ? minY : minZ;
+            var verticalMax = verticalAxis == 1 ? maxY : maxZ;
+            var verticalSize = Math.Max(1e-6, verticalMax - verticalMin);
+            var verticalCenter = verticalMin + (verticalSize * 0.64);
+            var xCenter = minX + (sizeX * 0.5);
+            var rx = Math.Max(1e-6, sizeX * 0.18);
+            var ry = Math.Max(1e-6, verticalSize * 0.09);
+
+            var lowerOpen = verticalSize * (0.018 * mouthOpen);
+            var upperOpen = verticalSize * (0.007 * mouthOpen);
+            var depthPush = verticalSize * (0.005 * mouthOpen);
+
+            for (var i = 0; i < pointCount; i++)
+            {
+                var p = _workingPoints[i];
+                var x = p[0];
+                var v = verticalAxis == 1 ? (double)p[1] : p[2];
+                var nx = (x - xCenter) / rx;
+                var ny = (v - verticalCenter) / ry;
+                var radial = (nx * nx) + (ny * ny);
+                if (radial >= 1.0)
+                {
+                    continue;
+                }
+
+                var influence = 1.0 - radial;
+                influence = influence * influence * (3.0 - (2.0 * influence)); // smoothstep
+
+                var isLowerLipSide = v < verticalCenter;
+                var dv = isLowerLipSide ? (-lowerOpen * influence) : (upperOpen * influence);
+                var dd = isLowerLipSide ? (depthPush * influence) : (-depthPush * 0.5 * influence);
+
+                if (verticalAxis == 1)
+                {
+                    p[1] = (float)(p[1] + dv);
+                }
+                else
+                {
+                    p[2] = (float)(p[2] + dv);
+                }
+
+                if (depthAxis == 1)
+                {
+                    p[1] = (float)(p[1] + dd);
+                }
+                else
+                {
+                    p[2] = (float)(p[2] + dd);
+                }
+
+                _workingPoints[i] = p;
+            }
+        }
+
+        private void ApplyProceduralUniversalBlendshapePairFallbackToWorkingPoints(double blendshape1, double blendshape2)
+        {
+            blendshape1 = Math.Clamp(blendshape1, 0.0, 1.0);
+            blendshape2 = Math.Clamp(blendshape2, 0.0, 1.0);
+            if (blendshape1 <= 1e-4 && blendshape2 <= 1e-4)
+            {
+                return;
+            }
+
+            var pointCount = (int)_workingPoints.size();
+            if (pointCount <= 0)
+            {
+                return;
+            }
+
+            var minX = double.PositiveInfinity;
+            var maxX = double.NegativeInfinity;
+            var minY = double.PositiveInfinity;
+            var maxY = double.NegativeInfinity;
+            var minZ = double.PositiveInfinity;
+            var maxZ = double.NegativeInfinity;
+
+            for (var i = 0; i < pointCount; i++)
+            {
+                var p = _workingPoints[i];
+                minX = Math.Min(minX, p[0]); maxX = Math.Max(maxX, p[0]);
+                minY = Math.Min(minY, p[1]); maxY = Math.Max(maxY, p[1]);
+                minZ = Math.Min(minZ, p[2]); maxZ = Math.Max(maxZ, p[2]);
+            }
+
+            var sizeX = Math.Max(1e-6, maxX - minX);
+            var sizeY = Math.Max(1e-6, maxY - minY);
+            var sizeZ = Math.Max(1e-6, maxZ - minZ);
+
+            var verticalAxis = sizeY >= sizeZ ? 1 : 2;
+            var depthAxis = verticalAxis == 1 ? 2 : 1;
+            var verticalMin = verticalAxis == 1 ? minY : minZ;
+            var verticalMax = verticalAxis == 1 ? maxY : maxZ;
+            var verticalSize = Math.Max(1e-6, verticalMax - verticalMin);
+
+            var xCenter = minX + (sizeX * 0.5);
+            var mouthCenter = verticalMin + (verticalSize * 0.64);
+            var rx = Math.Max(1e-6, sizeX * 0.20);
+            var ry = Math.Max(1e-6, verticalSize * 0.11);
+            var cornerBand = Math.Max(1e-6, sizeX * 0.10);
+
+            var closeTravel = verticalSize * (0.014 * blendshape1);
+            var pinchFactor = 0.11 * blendshape1;
+            var closeDepth = verticalSize * (0.0035 * blendshape1);
+
+            var openTravel = verticalSize * (0.022 * blendshape2);
+            var spreadTravel = sizeX * (0.008 * blendshape2);
+            var smileLift = verticalSize * (0.010 * blendshape2);
+            var openDepth = verticalSize * (0.005 * blendshape2);
+
+            for (var i = 0; i < pointCount; i++)
+            {
+                var p = _workingPoints[i];
+                var x = (double)p[0];
+                var v = verticalAxis == 1 ? (double)p[1] : p[2];
+
+                var nx = (x - xCenter) / rx;
+                var ny = (v - mouthCenter) / ry;
+                var radial = (nx * nx) + (ny * ny);
+                if (radial >= 1.35)
+                {
+                    continue;
+                }
+
+                var mask = 1.0 - Math.Clamp(radial / 1.35, 0.0, 1.0);
+                mask = mask * mask * (3.0 - (2.0 * mask)); // smoothstep
+
+                var lowerSide = v < mouthCenter;
+                var side = x >= xCenter ? 1.0 : -1.0;
+                var absX = Math.Abs(x - xCenter);
+                var cornerWeight = Math.Clamp((absX - (rx * 0.35)) / cornerBand, 0.0, 1.0);
+                cornerWeight *= mask;
+
+                var dx = 0.0;
+                var dv = 0.0;
+                var dd = 0.0;
+
+                // Blendshape 1: pursed / closed lips (compress towards mouth center).
+                dx += (xCenter - x) * pinchFactor * mask;
+                dv += lowerSide ? (closeTravel * mask) : (-closeTravel * 0.85 * mask);
+                dd += lowerSide ? (-closeDepth * mask) : (-closeDepth * 0.5 * mask);
+
+                // Blendshape 2: wider / open mouth with slight corner lift.
+                dx += side * spreadTravel * cornerWeight;
+                dv += lowerSide ? (-openTravel * mask) : (openTravel * 0.22 * mask);
+                dv += !lowerSide ? (smileLift * cornerWeight) : 0.0;
+                dd += lowerSide ? (openDepth * mask) : (-openDepth * 0.4 * mask);
+
+                p[0] = (float)(p[0] + dx);
+                if (verticalAxis == 1)
+                {
+                    p[1] = (float)(p[1] + dv);
+                }
+                else
+                {
+                    p[2] = (float)(p[2] + dv);
+                }
+
+                if (depthAxis == 1)
+                {
+                    p[1] = (float)(p[1] + dd);
+                }
+                else
+                {
+                    p[2] = (float)(p[2] + dd);
+                }
+
+                _workingPoints[i] = p;
+            }
+        }
+
         private void RecomputeSmoothNormals()
         {
             var positions = MeshGeometry.Positions;
@@ -1265,4 +1696,26 @@ internal sealed class UsdWpfSkinnedAvatarPlayer : IDisposable
             }
         }
     }
+
+    private sealed record MorphTargetPointDeltaPayload(int index, double dx, double dy, double dz);
+
+    private sealed record MorphTargetReferenceMesh(
+        string primPath,
+        int pointCount,
+        double[] coordinates);
+
+    private sealed record MorphTargetMeshPayload(
+        string primPath,
+        int pointCount,
+        List<MorphTargetPointDeltaPayload> deltas);
+
+    private sealed record MorphTargetExportPayload(
+        string name,
+        string sourceUsd,
+        string outputPath,
+        string generatedUtc,
+        double frameTime,
+        double mouthOpen,
+        double headCompensation,
+        List<MorphTargetMeshPayload> meshes);
 }

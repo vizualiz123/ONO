@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -14,6 +15,7 @@ internal static class UsdWpfMeshLoader
     private const string UsdNuGetPackageName = "universalscenedescription";
     private static readonly object Sync = new();
     private static bool _runtimeInitialized;
+    private static readonly Regex UsdAssetPathRegex = new(@"@([^@\r\n]+)@", RegexOptions.Compiled);
 
     public static bool TryCreateModel(string usdPath, Material fallbackMaterial, out Model3D model)
     {
@@ -490,9 +492,7 @@ internal static class UsdWpfMeshLoader
             RenderOptions.SetCacheInvalidationThresholdMaximum(brush, 2.0);
             brush.Freeze();
 
-            var material = new DiffuseMaterial(brush);
-            material.Freeze();
-            return material;
+            return CreateModernTexturedMaterial(brush, prim);
         }
         catch
         {
@@ -525,14 +525,31 @@ internal static class UsdWpfMeshLoader
         {
             var folderName = Path.GetFileName(dir);
             var exact = Directory.EnumerateFiles(dir, "*", SearchOption.TopDirectoryOnly)
-                .FirstOrDefault(file => Path.GetFileNameWithoutExtension(file).Equals($"{folderName}_BaseColor", StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(file =>
+                {
+                    var name = Path.GetFileNameWithoutExtension(file);
+                    return name.Equals($"{folderName}_BaseColor", StringComparison.OrdinalIgnoreCase)
+                           || name.Equals($"{folderName}_Albedo", StringComparison.OrdinalIgnoreCase)
+                           || name.Equals($"{folderName}_Diffuse", StringComparison.OrdinalIgnoreCase)
+                           || name.Equals($"{folderName}_Blend", StringComparison.OrdinalIgnoreCase);
+                });
             if (!string.IsNullOrWhiteSpace(exact))
             {
                 return exact;
             }
 
             var fallback = Directory.EnumerateFiles(dir, "*", SearchOption.TopDirectoryOnly)
-                .FirstOrDefault(file => Path.GetFileName(file).Contains("_BaseColor", StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(file =>
+                {
+                    var n = Path.GetFileName(file);
+                    return n.Contains("_BaseColor", StringComparison.OrdinalIgnoreCase)
+                           || n.Contains("_Albedo", StringComparison.OrdinalIgnoreCase)
+                           || n.Contains("_Diffuse", StringComparison.OrdinalIgnoreCase)
+                           || n.Contains("_Blend", StringComparison.OrdinalIgnoreCase)
+                           || n.Contains("BaseColor", StringComparison.OrdinalIgnoreCase)
+                           || n.Contains("Albedo", StringComparison.OrdinalIgnoreCase)
+                           || n.Contains("Blend", StringComparison.OrdinalIgnoreCase);
+                });
             if (!string.IsNullOrWhiteSpace(fallback))
             {
                 return fallback;
@@ -565,7 +582,183 @@ internal static class UsdWpfMeshLoader
             current = current.Parent;
         }
 
+        // Composed stages (e.g. usd/stages/main_faceonly_v2.usda) may subLayer a character asset
+        // that owns the real Materials/Textures folder. Parse referenced @asset@ paths as a fallback.
+        foreach (var referencedUsd in EnumerateReferencedUsdPathsFromTextStage(usdPath))
+        {
+            var referencedDir = Path.GetDirectoryName(referencedUsd);
+            if (string.IsNullOrWhiteSpace(referencedDir))
+            {
+                continue;
+            }
+
+            var referencedCurrent = new DirectoryInfo(referencedDir);
+            while (referencedCurrent is not null)
+            {
+                var texturesRoot = Path.Combine(referencedCurrent.FullName, "Materials", "Textures");
+                if (Directory.Exists(texturesRoot))
+                {
+                    return texturesRoot;
+                }
+
+                referencedCurrent = referencedCurrent.Parent;
+            }
+        }
+
         return null;
+    }
+
+    private static IEnumerable<string> EnumerateReferencedUsdPathsFromTextStage(string usdPath)
+    {
+        if (string.IsNullOrWhiteSpace(usdPath) || !File.Exists(usdPath))
+        {
+            yield break;
+        }
+
+        var ext = Path.GetExtension(usdPath);
+        if (!ext.Equals(".usda", StringComparison.OrdinalIgnoreCase))
+        {
+            yield break;
+        }
+
+        string text;
+        try
+        {
+            text = File.ReadAllText(usdPath);
+        }
+        catch
+        {
+            yield break;
+        }
+
+        var baseDir = Path.GetDirectoryName(usdPath) ?? string.Empty;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match match in UsdAssetPathRegex.Matches(text))
+        {
+            if (!match.Success || match.Groups.Count < 2)
+            {
+                continue;
+            }
+
+            var raw = match.Groups[1].Value.Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                continue;
+            }
+
+            // Skip non-USD references (textures, etc.) here; we only need referenced stages/assets.
+            var rawNormalized = raw.Replace('/', Path.DirectorySeparatorChar);
+            var resolved = Path.IsPathRooted(rawNormalized)
+                ? rawNormalized
+                : Path.GetFullPath(Path.Combine(baseDir, rawNormalized));
+
+            var resolvedExt = Path.GetExtension(resolved);
+            if (!resolvedExt.Equals(".usd", StringComparison.OrdinalIgnoreCase)
+                && !resolvedExt.Equals(".usda", StringComparison.OrdinalIgnoreCase)
+                && !resolvedExt.Equals(".usdc", StringComparison.OrdinalIgnoreCase)
+                && !resolvedExt.Equals(".usdz", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (File.Exists(resolved) && seen.Add(resolved))
+            {
+                yield return resolved;
+            }
+        }
+    }
+
+    private static Material CreateModernTexturedMaterial(ImageBrush baseBrush, UsdPrim prim)
+    {
+        var profile = GetShadingProfile(prim);
+
+        var diffuseBrush = (ImageBrush)baseBrush.CloneCurrentValue();
+        diffuseBrush.Opacity = profile.diffuseOpacity;
+        RenderOptions.SetBitmapScalingMode(diffuseBrush, BitmapScalingMode.HighQuality);
+        RenderOptions.SetCachingHint(diffuseBrush, CachingHint.Cache);
+        RenderOptions.SetCacheInvalidationThresholdMinimum(diffuseBrush, 0.5);
+        RenderOptions.SetCacheInvalidationThresholdMaximum(diffuseBrush, 2.0);
+        if (diffuseBrush.CanFreeze) diffuseBrush.Freeze();
+
+        var specularColor = profile.eyeLike
+            ? Color.FromArgb(170, 196, 255, 248)
+            : Color.FromArgb(110, 242, 246, 255);
+        var specBrush = new SolidColorBrush(specularColor);
+        if (specBrush.CanFreeze) specBrush.Freeze();
+
+        var emissiveBrush = profile.eyeLike
+            ? (Brush)new SolidColorBrush(Color.FromArgb(70, 74, 255, 236))
+            : (Brush)CreateTintedTextureBrush(baseBrush, profile.emissiveOpacity, profile.emissiveTint);
+        if (emissiveBrush.CanFreeze) emissiveBrush.Freeze();
+
+        var materialGroup = new MaterialGroup();
+        var diffuse = new DiffuseMaterial(diffuseBrush);
+        var specular = new SpecularMaterial(specBrush, profile.specularPower);
+        var emissive = new EmissiveMaterial(emissiveBrush);
+        if (diffuse.CanFreeze) diffuse.Freeze();
+        if (specular.CanFreeze) specular.Freeze();
+        if (emissive.CanFreeze) emissive.Freeze();
+
+        materialGroup.Children.Add(diffuse);
+        materialGroup.Children.Add(specular);
+        materialGroup.Children.Add(emissive);
+
+        if (materialGroup.CanFreeze) materialGroup.Freeze();
+        return materialGroup;
+    }
+
+    private static (bool eyeLike, bool skinLike, double diffuseOpacity, double emissiveOpacity, double specularPower, Color emissiveTint) GetShadingProfile(UsdPrim prim)
+    {
+        var path = prim.GetPath().ToString();
+        var lower = path.ToLowerInvariant();
+        var eyeLike = lower.Contains("eye") || lower.Contains("iris") || lower.Contains("pupil");
+        var teethLike = lower.Contains("teeth");
+        var tongueLike = lower.Contains("tongue");
+        var skinLike = lower.Contains("skin") || lower.Contains("body") || lower.Contains("head");
+
+        if (eyeLike)
+        {
+            return (true, false, 0.96, 0.18, 96, Color.FromRgb(130, 255, 244));
+        }
+
+        if (teethLike)
+        {
+            return (false, false, 0.94, 0.025, 54, Color.FromRgb(180, 230, 255));
+        }
+
+        if (tongueLike)
+        {
+            return (false, false, 0.92, 0.02, 44, Color.FromRgb(180, 140, 180));
+        }
+
+        if (skinLike)
+        {
+            // Keep skin modern but not neon: subtle sheen, almost no emissive.
+            return (false, true, 0.98, 0.008, 42, Color.FromRgb(132, 230, 244));
+        }
+
+        return (false, false, 0.96, 0.015, 50, Color.FromRgb(132, 230, 244));
+    }
+
+    private static Brush CreateTintedTextureBrush(ImageBrush baseBrush, double opacity, Color tint)
+    {
+        var visual = new DrawingGroup();
+        var rect = new Rect(0, 0, 1, 1);
+        visual.Children.Add(new GeometryDrawing(baseBrush, null, new RectangleGeometry(rect)));
+        visual.Children.Add(new GeometryDrawing(new SolidColorBrush(Color.FromArgb((byte)Math.Clamp((int)Math.Round(opacity * 255), 0, 255), tint.R, tint.G, tint.B)), null, new RectangleGeometry(rect)));
+        if (visual.CanFreeze) visual.Freeze();
+
+        var brush = new DrawingBrush(visual)
+        {
+            Stretch = Stretch.Fill,
+            Viewbox = rect,
+            ViewboxUnits = BrushMappingMode.RelativeToBoundingBox,
+            Viewport = rect,
+            ViewportUnits = BrushMappingMode.RelativeToBoundingBox,
+            TileMode = TileMode.None,
+            Opacity = 1.0
+        };
+        return brush;
     }
 
     private static IEnumerable<string> EnumerateTextureDirectoryCandidates(string texturesRoot, UsdPrim prim, string meshName)
