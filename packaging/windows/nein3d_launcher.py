@@ -15,6 +15,7 @@ from pathlib import Path
 APP_NAME = "Nein3D"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_UI_PORT = 7860
+DEFAULT_WEB_PORT = 7870
 DEFAULT_TEXT_ENCODER_PORT = 9550
 DEFAULT_MODEL = "kimodo-soma-seed"
 
@@ -176,11 +177,13 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Start the Nein3D local studio.")
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--ui-port", type=int, default=DEFAULT_UI_PORT)
+    parser.add_argument("--web-port", type=int, default=DEFAULT_WEB_PORT)
     parser.add_argument("--text-encoder-port", type=int, default=DEFAULT_TEXT_ENCODER_PORT)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--title", default=APP_NAME)
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--detach", action="store_true", help="Start services and exit the launcher.")
+    parser.add_argument("--legacy-ui", action="store_true", help="Open the backend Viser UI instead of the web DCC UI.")
     return parser.parse_args()
 
 
@@ -239,7 +242,35 @@ def main() -> int:
                 process=studio,
             )
 
-        url = f"http://{args.host}:{args.ui_port}"
+        if port_open(args.host, args.web_port):
+            print(f"[OK] Web UI already running on {args.host}:{args.web_port}")
+        else:
+            web = start_process(
+                root=root,
+                name="web UI",
+                args=[
+                    str(py),
+                    str(root / "packaging" / "windows" / "nein3d_web_server.py"),
+                    "--host",
+                    args.host,
+                    "--port",
+                    str(args.web_port),
+                ],
+                env={},
+                log_stem="web",
+            )
+            started.append(web)
+            wait_for_port(
+                host=args.host,
+                port=args.web_port,
+                name="Web UI",
+                timeout_seconds=45,
+                process=web,
+            )
+
+        engine_url = f"http://{args.host}:{args.ui_port}"
+        web_url = f"http://{args.host}:{args.web_port}/?engine={engine_url}"
+        url = engine_url if args.legacy_ui else web_url
         print(f"[OK] {APP_NAME} is ready: {url}")
         if not args.no_browser:
             webbrowser.open(url)
