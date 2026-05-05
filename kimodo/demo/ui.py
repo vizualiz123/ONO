@@ -2922,12 +2922,28 @@ def create_gui(
 
             generating_notif = event_client.add_notification(
                 title="Generating motion...",
-                body="Generating motions for the given prompt!",
+                body="Preparing model and constraints...",
                 loading=True,
                 with_close_button=False,
             )
             gui_generate_button.disabled = True
             client.timeline.disable_constraints()
+
+            def _progress_callback(step: int, total: int, segment_idx: int, num_segments: int) -> None:
+                if total <= 0:
+                    return
+                percent = int(round(100.0 * step / total))
+                bar_len = 16
+                filled = int(round(bar_len * step / total))
+                bar = "#" * filled + "-" * (bar_len - filled)
+                if num_segments > 1:
+                    body = f"Segment {segment_idx + 1}/{num_segments} | step {step}/{total} ({percent}%) [{bar}]"
+                else:
+                    body = f"Denoising step {step}/{total} ({percent}%) [{bar}]"
+                try:
+                    generating_notif.body = body
+                except Exception:
+                    pass
 
             num_samples = gui_num_samples_slider.value
             timeline = session.client.timeline
@@ -2969,6 +2985,7 @@ def create_gui(
                     postprocess_parameters=postprocess_parameters,
                     transitions_parameters=transitions_parameters,
                     real_robot_rotations=gui_real_robot_rotations_checkbox.value,
+                    progress_callback=_progress_callback,
                 )
                 actual_frame_count = max(
                     [motion.length for motion in session.motions.values()],

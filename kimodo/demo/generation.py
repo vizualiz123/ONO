@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections import defaultdict
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np
 import torch
@@ -147,6 +147,7 @@ def generate(
     device: str,
     clear_motions,
     add_character_motion,
+    progress_callback: Optional[Callable[[int, int, int, int], None]] = None,
 ) -> None:
     client_id = client.client_id
     print(
@@ -160,6 +161,27 @@ def generate(
     postprocess_parameters = postprocess_parameters or {}
     transitions_parameters = transitions_parameters or {}
 
+    num_segments = max(len(prompts), 1)
+    segment_state = {"index": 0}
+
+    def _progress_bar(iterable):
+        items = list(iterable)
+        total = len(items)
+        seg_idx = segment_state["index"]
+        if progress_callback:
+            try:
+                progress_callback(0, total, seg_idx, num_segments)
+            except Exception:
+                pass
+        for i, item in enumerate(items):
+            yield item
+            if progress_callback:
+                try:
+                    progress_callback(i + 1, total, seg_idx, num_segments)
+                except Exception:
+                    pass
+        segment_state["index"] = seg_idx + 1
+
     encoder = getattr(model_bundle.model, "text_encoder", None)
     if isinstance(encoder, CachedTextEncoder):
         with encoder.session_context(session):
@@ -172,6 +194,7 @@ def generate(
                 cfg_weight=cfg_weight,
                 num_samples=num_samples,
                 cfg_type=cfg_type,
+                progress_bar=_progress_bar,
                 **(postprocess_parameters | transitions_parameters),
             )  # [B, T, motion_rep_dim]
     else:
@@ -184,6 +207,7 @@ def generate(
             cfg_weight=cfg_weight,
             num_samples=num_samples,
             cfg_type=cfg_type,
+            progress_bar=_progress_bar,
             **(postprocess_parameters | transitions_parameters),
         )  # [B, T, motion_rep_dim]
 

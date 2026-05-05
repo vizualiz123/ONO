@@ -712,6 +712,7 @@ class Demo:
         postprocess_parameters: Optional[dict] = None,
         transitions_parameters: Optional[dict] = None,
         real_robot_rotations: bool = False,
+        progress_callback=None,
     ) -> None:
         if not self._cuda_healthy:
             raise RuntimeError("CUDA is in a corrupted state. The space is restarting...")
@@ -749,6 +750,7 @@ class Demo:
                 device=self.device,
                 clear_motions=self.clear_motions,
                 add_character_motion=self.add_character_motion,
+                progress_callback=progress_callback,
             )
         finally:
             if self.aggressive_gpu_cleanup:
