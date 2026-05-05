@@ -58,6 +58,7 @@ from .config import (
 from .embedding_cache import CachedTextEncoder
 from .queue_manager import QueueManager, UserQueue
 from .state import ClientSession, ModelBundle
+from .usd_loader import load_usd_meshes
 
 
 def _env_flag(name: str, default: bool = True) -> bool:
@@ -91,6 +92,7 @@ class Demo:
         self.client_sessions: dict[int, ClientSession] = {}
         self.start_direction_markers: dict[int, viser_utils.WaypointMesh] = {}
         self.grid_handles: dict[int, viser.GridHandle] = {}
+        self.usd_mesh_handles: dict[int, list[viser.SceneNodeHandle]] = {}
 
         self.server = viser.ViserServer(
             host=SERVER_NAME,
@@ -342,10 +344,55 @@ class Demo:
 
     def _cleanup_session_for_client(self, client_id: int) -> None:
         """Remove session and scene state for a client (e.g. on session expiry)."""
+        self.clear_usd_asset(client_id)
         if client_id in self.client_sessions:
             del self.client_sessions[client_id]
         self.start_direction_markers.pop(client_id, None)
         self.grid_handles.pop(client_id, None)
+
+    def clear_usd_asset(self, client_id: int) -> int:
+        handles = self.usd_mesh_handles.pop(client_id, [])
+        for handle in handles:
+            try:
+                handle.visible = False
+                name = handle.name
+            except Exception:
+                continue
+            for session in self.client_sessions.values():
+                try:
+                    session.client.scene.remove_by_name(name)
+                except Exception:
+                    pass
+        return len(handles)
+
+    def load_usd_asset(
+        self,
+        client: viser.ClientHandle,
+        *,
+        path: str,
+        scale: float = 1.0,
+        center: bool = True,
+        opacity: float = 1.0,
+        wireframe: bool = False,
+        color: tuple[int, int, int] = (152, 189, 255),
+    ) -> int:
+        client_id = client.client_id
+        self.clear_usd_asset(client_id)
+        meshes = load_usd_meshes(path, scale=scale, center=center)
+        handles = []
+        for idx, mesh in enumerate(meshes):
+            handle = client.scene.add_mesh_simple(
+                f"/usd_asset/{client_id}/{idx}_{mesh.name}",
+                vertices=mesh.vertices,
+                faces=mesh.faces,
+                color=color,
+                opacity=opacity,
+                wireframe=wireframe,
+                side="double",
+            )
+            handles.append(handle)
+        self.usd_mesh_handles[client_id] = handles
+        return len(handles)
 
     def _setup_demo_for_client(self, client: viser.ClientHandle) -> None:
         """Initialize scene, GUI, and session state for a client (no modals)."""

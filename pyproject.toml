@@ -26,6 +26,7 @@ dependencies = [
   "gradio>=6.8.0",
   "gradio_client>=1.0",
   "trimesh>=3.21.7",
+  "usd-core>=26.5",
   "scenepic>=1.1.0",
   "pillow>=9.0",
   "av>=16.1.0",

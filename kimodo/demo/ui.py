@@ -3064,6 +3064,75 @@ def create_gui(
                 initial_value=45.0,
             )
             client.camera.fov = np.deg2rad(gui_camera_fov_slider.value)
+        with client.gui.add_folder("USD 3D", expand_by_default=False):
+            gui_usd_path_text = client.gui.add_text(
+                "Путь к файлу",
+                initial_value="asset.usd",
+                hint="Поддерживаются .usd, .usda, .usdc, .usdz",
+            )
+            gui_usd_scale_slider = client.gui.add_slider(
+                "Масштаб",
+                min=0.01,
+                max=10.0,
+                step=0.01,
+                initial_value=1.0,
+            )
+            gui_usd_opacity_slider = client.gui.add_slider(
+                "Прозрачность",
+                min=0.05,
+                max=1.0,
+                step=0.01,
+                initial_value=1.0,
+            )
+            gui_usd_center_checkbox = client.gui.add_checkbox("Центрировать", initial_value=True)
+            gui_usd_wireframe_checkbox = client.gui.add_checkbox("Wireframe", initial_value=False)
+            gui_load_usd_button = client.gui.add_button("Загрузить USD")
+            gui_clear_usd_button = client.gui.add_button("Очистить USD")
+
+            @gui_load_usd_button.on_click
+            def _(event: viser.GuiEvent) -> None:
+                event_client = event.client
+                if get_active_session(event_client) is None:
+                    return
+                path = gui_usd_path_text.value
+                try:
+                    mesh_count = demo.load_usd_asset(
+                        event_client,
+                        path=path,
+                        scale=gui_usd_scale_slider.value,
+                        center=gui_usd_center_checkbox.value,
+                        opacity=gui_usd_opacity_slider.value,
+                        wireframe=gui_usd_wireframe_checkbox.value,
+                    )
+                    event_client.add_notification(
+                        title="USD загружен",
+                        body=f"Загружено mesh-объектов: {mesh_count}",
+                        auto_close_seconds=5.0,
+                        color="green",
+                    )
+                except Exception as e:
+                    import traceback
+
+                    traceback.print_exc()
+                    event_client.add_notification(
+                        title="USD не загрузился",
+                        body=str(e),
+                        auto_close_seconds=10.0,
+                        color="red",
+                    )
+
+            @gui_clear_usd_button.on_click
+            def _(event: viser.GuiEvent) -> None:
+                event_client = event.client
+                if get_active_session(event_client) is None:
+                    return
+                removed = demo.clear_usd_asset(event_client.client_id)
+                event_client.add_notification(
+                    title="USD очищен",
+                    body=f"Удалено mesh-объектов: {removed}",
+                    auto_close_seconds=4.0,
+                    color="blue",
+                )
         with client.gui.add_folder("Интерфейс", expand_by_default=True):
             gui_show_timeline_checkbox = client.gui.add_checkbox(
                 "Показать таймлайн",
