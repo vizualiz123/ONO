@@ -106,7 +106,8 @@
 
       <section class="viewport-column">
         <div class="viewport-tabs">
-          <button class="active">Perspective</button>
+          <button class="active" id="dccViewportMode">DCC View</button>
+          <button id="engineViewportMode">Live Engine</button>
           <button>Top</button>
           <button>Front</button>
           <button>Left</button>
@@ -118,6 +119,12 @@
         </div>
         <div class="viewport" id="viewport">
           <canvas id="viewportCanvas" width="1280" height="720"></canvas>
+          <iframe
+            id="engineFrame"
+            class="engine-frame"
+            title="Nein3D live backend engine"
+            loading="lazy"
+          ></iframe>
           <div class="viewport-overlay top-left">
             <strong>Viewport</strong>
             <span id="viewportStatus">Prompt editable · local project</span>
