@@ -299,7 +299,77 @@ textarea:focus {
 
 .bottom-right {
   right: 10px;
-  bottom: 10px;
+  bottom: 130px;
+}
+
+.prompt-dock {
+  position: absolute;
+  left: clamp(16px, 5vw, 72px);
+  right: clamp(16px, 5vw, 72px);
+  bottom: 16px;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "head actions"
+    "input actions";
+  gap: 8px 12px;
+  padding: 12px;
+  border: 1px solid rgba(72, 221, 255, 0.26);
+  background:
+    linear-gradient(180deg, rgba(19, 29, 39, 0.78), rgba(6, 9, 14, 0.64)),
+    rgba(5, 7, 10, 0.48);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px) saturate(135%);
+}
+
+.prompt-head {
+  grid-area: head;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.prompt-head strong {
+  color: var(--accent);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.prompt-head span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.prompt-dock textarea {
+  grid-area: input;
+  min-height: 58px;
+  max-height: 116px;
+  resize: vertical;
+  border-color: rgba(72, 221, 255, 0.22);
+  background: rgba(3, 5, 8, 0.55);
+  color: #f4fbff;
+}
+
+.prompt-dock textarea::selection {
+  background: rgba(72, 221, 255, 0.32);
+}
+
+.prompt-actions {
+  grid-area: actions;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  align-self: stretch;
+  gap: 8px;
+  width: 116px;
+}
+
+.prompt-actions button {
+  height: auto;
+  min-height: 32px;
 }
 
 .transform-gizmo {
@@ -346,7 +416,7 @@ textarea:focus {
 
 .command-panel {
   display: grid;
-  grid-template-rows: 36px auto auto auto minmax(0, 1fr);
+  grid-template-rows: 36px auto auto minmax(0, 1fr);
   gap: 8px;
   min-height: 0;
   padding: 8px;
@@ -386,6 +456,10 @@ textarea:focus {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.two-col h2 {
+  grid-column: 1 / -1;
 }
 
 .field {
@@ -650,6 +724,27 @@ dialog p {
     bottom: 180px;
     width: min(330px, 86vw);
     z-index: 6;
+  }
+
+  .prompt-dock {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "head"
+      "input"
+      "actions";
+  }
+
+  .prompt-actions {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: none;
+    width: auto;
+  }
+
+  .bottom-right {
+    bottom: 184px;
   }
 
   .menu button {

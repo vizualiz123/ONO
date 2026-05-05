@@ -83,6 +83,17 @@
           <div class="viewport-overlay bottom-right">
             <span id="frameReadout">Frame 0 / 179</span>
           </div>
+          <section class="prompt-dock" aria-label="Prompt editor">
+            <div class="prompt-head">
+              <strong>Prompt</strong>
+              <span>editable motion command</span>
+            </div>
+            <textarea id="promptInput" rows="3" spellcheck="true">A person walks forward.</textarea>
+            <div class="prompt-actions">
+              <button id="applyPrompt" class="primary-button">Apply</button>
+              <button id="addPromptBlock">Add Block</button>
+            </div>
+          </section>
           <div class="transform-gizmo" aria-hidden="true">
             <span class="axis x"></span>
             <span class="axis y"></span>
@@ -100,19 +111,8 @@
           <button data-panel="export">Export</button>
         </div>
 
-        <section class="panel-section">
-          <h2>Text To Motion</h2>
-          <label class="field">
-            <span>Prompt</span>
-            <textarea id="promptInput" rows="5" spellcheck="true">A person walks forward.</textarea>
-          </label>
-          <div class="button-row">
-            <button id="applyPrompt" class="primary-button">Apply To Track</button>
-            <button id="addPromptBlock">Add Block</button>
-          </div>
-        </section>
-
         <section class="panel-section two-col">
+          <h2>Generate</h2>
           <label class="field">
             <span>Model</span>
             <select id="modelSelect">
