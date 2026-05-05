@@ -179,6 +179,12 @@ def create_gui(
     gui_prev_frame_button = None
     gui_timeline = None
     gui_duration_slider = None
+    ICON_BUTTON_LABEL = ""
+    GENERATE_BUTTON_HINT = "Сгенерировать движение."
+    GENERATE_DISABLED_HINT = "Генерация выключена в режиме редактирования."
+    CHOOSE_VARIANT_HINT = "Сначала выбери один из вариантов в сцене."
+    EDIT_MODE_HINT = "Включить режим редактирования позы."
+    EXIT_EDIT_MODE_HINT = "Выйти из режима редактирования."
 
     # now other gui elements
     tab_group = client.gui.add_tab_group()
@@ -239,8 +245,9 @@ def create_gui(
                 content=f"**Модель:** {initial_version}",
             )
             gui_load_model_button = client.gui.add_button(
-                "Загрузить модель",
+                ICON_BUTTON_LABEL,
                 hint="Загрузить выбранную модель.",
+                icon=viser.Icon.DATABASE_IMPORT,
             )
 
             class ModelSelectorHandle:
@@ -292,9 +299,10 @@ def create_gui(
                 initial_value=example_names[0],
             )
             gui_load_example_button = client.gui.add_button(
-                "Загрузить пример",
+                ICON_BUTTON_LABEL,
                 hint="Загрузить выбранный пример.",
                 disabled=not example_dict,
+                icon=viser.Icon.FOLDER_OPEN,
             )
 
             def update_examples_dropdown(
@@ -481,7 +489,12 @@ def create_gui(
                     visible="g1" in _model_name,
                 )
 
-            gui_generate_button = client.gui.add_button("Сгенерировать", color="green")
+            gui_generate_button = client.gui.add_button(
+                ICON_BUTTON_LABEL,
+                color="green",
+                hint=GENERATE_BUTTON_HINT,
+                icon=viser.Icon.ROCKET,
+            )
         with client.gui.add_folder("Контроль", expand_by_default=False):
             gui_gizmo_space_dropdown = client.gui.add_dropdown(
                 "Ось манипулятора",
@@ -489,18 +502,28 @@ def create_gui(
                 initial_value="Local",
                 visible="g1" not in _model_name,
             )
-            gui_edit_constraint_button = client.gui.add_button("Режим редактирования")
+            gui_edit_constraint_button = client.gui.add_button(
+                ICON_BUTTON_LABEL,
+                hint=EDIT_MODE_HINT,
+                icon=viser.Icon.PENCIL,
+            )
             gui_snap_to_constraint_button = client.gui.add_button(
-                "Перейти к ключу",
+                ICON_BUTTON_LABEL,
                 disabled=True,
+                hint="Перейти к ключу на текущем кадре.",
+                icon=viser.Icon.TARGET_ARROW,
             )
             gui_reset_constraint_button = client.gui.add_button(
-                "Сбросить ключ",
+                ICON_BUTTON_LABEL,
                 disabled=True,
+                hint="Сбросить позу ключа.",
+                icon=viser.Icon.RESTORE,
             )
             gui_undo_drag_button = client.gui.add_button(
-                "Отменить движение",
+                ICON_BUTTON_LABEL,
                 disabled=True,
+                hint="Отменить последнее движение манипулятора.",
+                icon=viser.Icon.ARROW_BACK_UP,
             )
 
             with client.gui.add_folder("Путь по полу", expand_by_default=True):
@@ -528,8 +551,10 @@ def create_gui(
                 apply_constraint_overlay_visibility(session)
 
             gui_clear_all_constraints_button = client.gui.add_button(
-                "Очистить контроль",
+                ICON_BUTTON_LABEL,
                 color="red",
+                hint="Очистить весь контроль.",
+                icon=viser.Icon.TRASH,
             )
 
             def has_constraint_at_frame(session: ClientSession, frame_idx: int) -> bool:
@@ -720,8 +745,9 @@ def create_gui(
                     visible=False,
                 )
                 gui_save_motion_button = client.gui.add_button(
-                    "Сохранить движение",
+                    ICON_BUTTON_LABEL,
                     hint="Сохранить текущее движение.",
+                    icon=viser.Icon.DEVICE_FLOPPY,
                 )
                 gui_load_motion_path_text = client.gui.add_text(
                     "Откуда загрузить",
@@ -729,18 +755,27 @@ def create_gui(
                     hint="SOMA .bvh, Kimodo or AMASS .npz, or G1 MuJoCo .csv",
                 )
                 gui_load_motion_button = client.gui.add_button(
-                    "Загрузить движение",
+                    ICON_BUTTON_LABEL,
                     hint="Загрузить выбранное движение.",
+                    icon=viser.Icon.FILE_IMPORT,
                 )
             with client.gui.add_folder("Контроль", expand_by_default=False):
                 gui_save_constraints_path_text = client.gui.add_text(
                     "Куда сохранить", initial_value="output_constraints.json"
                 )
-                gui_save_constraints_button = client.gui.add_button("Сохранить контроль")
+                gui_save_constraints_button = client.gui.add_button(
+                    ICON_BUTTON_LABEL,
+                    hint="Сохранить текущий контроль.",
+                    icon=viser.Icon.DEVICE_FLOPPY,
+                )
                 gui_load_constraints_path_text = client.gui.add_text(
                     "Откуда загрузить", initial_value="output_constraints.json"
                 )
-                gui_load_constraints_button = client.gui.add_button("Загрузить контроль")
+                gui_load_constraints_button = client.gui.add_button(
+                    ICON_BUTTON_LABEL,
+                    hint="Загрузить контроль из файла.",
+                    icon=viser.Icon.FILE_IMPORT,
+                )
             with client.gui.add_folder("Пример", expand_by_default=False):
                 gui_save_example_path_text = client.gui.add_text(
                     "Папка сохранения",
@@ -749,7 +784,11 @@ def create_gui(
                         "custom_example_1",
                     ),
                 )
-                gui_save_example_button = client.gui.add_button("Сохранить пример")
+                gui_save_example_button = client.gui.add_button(
+                    ICON_BUTTON_LABEL,
+                    hint="Сохранить текущий пример.",
+                    icon=viser.Icon.DEVICE_FLOPPY,
+                )
                 gui_load_example_path_text = client.gui.add_text(
                     "Папка загрузки",
                     initial_value=os.path.join(
@@ -761,7 +800,11 @@ def create_gui(
                     "Загрузить GT",
                     initial_value=False,
                 )
-                gui_load_example_from_path_button = client.gui.add_button("Загрузить пример")
+                gui_load_example_from_path_button = client.gui.add_button(
+                    ICON_BUTTON_LABEL,
+                    hint="Загрузить пример из папки.",
+                    icon=viser.Icon.FOLDER_OPEN,
+                )
 
             def _get_primary_motion(session: ClientSession):
                 return list(session.motions.values())[0]
@@ -1263,8 +1306,9 @@ def create_gui(
                     hint="Filename for the screenshot (PNG).",
                 )
                 gui_screenshot_button = client.gui.add_button(
-                    "Скачать скриншот",
+                    ICON_BUTTON_LABEL,
                     hint="Capture the current canvas and download a PNG.",
+                    icon=viser.Icon.CAMERA,
                 )
             with client.gui.add_folder("Видео", expand_by_default=False, visible=not HF_MODE):
                 gui_video_path_text = client.gui.add_text(
@@ -1273,8 +1317,9 @@ def create_gui(
                     hint="Filename for the video (MP4).",
                 )
                 gui_video_button = client.gui.add_button(
-                    "Скачать видео",
+                    ICON_BUTTON_LABEL,
                     hint="Render every frame and download as MP4.",
+                    icon=viser.Icon.VIDEO,
                 )
             with client.gui.add_folder("Движение", expand_by_default=True):
                 gui_download_name_text = client.gui.add_text(
@@ -1300,8 +1345,9 @@ def create_gui(
                     visible=False,
                 )
                 gui_download_button = client.gui.add_button(
-                    "Скачать",
+                    ICON_BUTTON_LABEL,
                     hint="Скачать текущее движение.",
+                    icon=viser.Icon.DOWNLOAD,
                 )
 
             def _download_bytes_to_browser(
@@ -2197,9 +2243,13 @@ def create_gui(
             gui_cfg_constraint_weight_slider.visible = val
 
         def exit_editing_mode(session: ClientSession):
-            gui_edit_constraint_button.label = "Режим редактирования"
+            gui_edit_constraint_button.label = ICON_BUTTON_LABEL
+            gui_edit_constraint_button.hint = EDIT_MODE_HINT
+            gui_edit_constraint_button.icon = viser.Icon.PENCIL
             gui_generate_button.disabled = False
-            gui_generate_button.label = "Сгенерировать"
+            gui_generate_button.label = ICON_BUTTON_LABEL
+            gui_generate_button.hint = GENERATE_BUTTON_HINT
+            gui_generate_button.icon = viser.Icon.ROCKET
             gui_reset_constraint_button.disabled = True
             if "g1" in session.model_name:
                 gui_gizmo_space_dropdown.value = "Local"
@@ -2250,9 +2300,13 @@ def create_gui(
             )
 
             if session.edit_mode:
-                gui_edit_constraint_button.label = "Выйти из редактирования"
+                gui_edit_constraint_button.label = ICON_BUTTON_LABEL
+                gui_edit_constraint_button.hint = EXIT_EDIT_MODE_HINT
+                gui_edit_constraint_button.icon = viser.Icon.LOGOUT
                 gui_generate_button.disabled = True
-                gui_generate_button.label = "Генерация выключена в режиме редактирования"
+                gui_generate_button.label = ICON_BUTTON_LABEL
+                gui_generate_button.hint = GENERATE_DISABLED_HINT
+                gui_generate_button.icon = viser.Icon.ROCKET
                 if "g1" in session.model_name:
                     gui_gizmo_space_dropdown.value = "Local"
                 gui_gizmo_space_dropdown.disabled = True
@@ -2951,7 +3005,9 @@ def create_gui(
                         gui_generate_button.disabled = False
                         gui_snap_to_constraint_button.disabled = False
                         client.timeline.enable_constraints()
-                        gui_generate_button.label = "Сгенерировать"
+                        gui_generate_button.label = ICON_BUTTON_LABEL
+                        gui_generate_button.hint = GENERATE_BUTTON_HINT
+                        gui_generate_button.icon = viser.Icon.ROCKET
                         gui_save_example_button.disabled = False
                         gui_save_motion_button.disabled = False
                         gui_download_button.disabled = False
@@ -2972,7 +3028,9 @@ def create_gui(
                     gui_edit_constraint_button.disabled = True
                     gui_generate_button.disabled = True
                     gui_snap_to_constraint_button.disabled = True
-                    gui_generate_button.label = "Сначала выбери вариант"
+                    gui_generate_button.label = ICON_BUTTON_LABEL
+                    gui_generate_button.hint = CHOOSE_VARIANT_HINT
+                    gui_generate_button.icon = viser.Icon.HAND_CLICK
                     gui_save_example_button.disabled = True
                     gui_save_motion_button.disabled = True
                     gui_download_button.disabled = True
@@ -3142,8 +3200,16 @@ def create_gui(
             )
             gui_usd_center_checkbox = client.gui.add_checkbox("Центрировать", initial_value=True)
             gui_usd_wireframe_checkbox = client.gui.add_checkbox("Wireframe", initial_value=False)
-            gui_load_usd_button = client.gui.add_button("Загрузить USD")
-            gui_clear_usd_button = client.gui.add_button("Очистить USD")
+            gui_load_usd_button = client.gui.add_button(
+                ICON_BUTTON_LABEL,
+                hint="Загрузить USD 3D в сцену.",
+                icon=viser.Icon.CUBE_PLUS,
+            )
+            gui_clear_usd_button = client.gui.add_button(
+                ICON_BUTTON_LABEL,
+                hint="Очистить загруженный USD 3D.",
+                icon=viser.Icon.CUBE_OFF,
+            )
 
             @gui_load_usd_button.on_click
             def _(event: viser.GuiEvent) -> None:
