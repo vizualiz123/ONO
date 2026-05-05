@@ -156,5 +156,11 @@ train_done
 .aider*
 onelogger.err
 
+# Local demo/runtime artifacts
+.kimodo_*.logs
+.kimodo_*.pid
+.tmp/
+.tools/
+
 # deploy files
 /helm-library

@@ -23,6 +23,8 @@ from kimodo.model.registry import (
 SERVER_NAME = os.environ.get("SERVER_NAME", "0.0.0.0")
 SERVER_PORT = int(os.environ.get("SERVER_PORT", "7860"))
 HF_MODE = os.environ.get("HF_MODE", False)
+APP_TITLE = os.environ.get("KIMODO_APP_TITLE", "Motion Studio")
+APP_PANEL_LABEL = os.environ.get("KIMODO_PANEL_LABEL", APP_TITLE)
 
 # HF mode: user queue and session limit (override via env in Spaces)
 MAX_ACTIVE_USERS = int(os.environ.get("MAX_ACTIVE_USERS", "5"))
@@ -36,7 +38,7 @@ MIN_DURATION = 2.0
 MAX_DURATION = 10.0
 
 SHOW_TRANSITION_PARAMS = True
-INIT_POSTPROCESSING = True
+INIT_POSTPROCESSING = os.environ.get("INIT_POSTPROCESSING", "true").lower() not in ("0", "false", "no")
 NB_TRANSITION_FRAMES = 5
 
 LIGHT_THEME = dict(
@@ -159,5 +161,81 @@ Switch to the **Visualize** tab to:
 - Adjust mesh opacity
 - Show/hide foot contact indicators
 - Switch between light and dark modes
+"""
+)
+
+# White-label UI copy. Kept at the end so it overrides the upstream text without
+# touching model or generation behavior.
+DEMO_UI_QUICK_START_CORE_MD = """
+### Камера
+- **Левая кнопка мыши**: повернуть сцену
+- **Правая кнопка мыши**: сдвинуть сцену
+- **Колесо мыши**: приблизить или отдалить
+
+### Воспроизведение
+- **Пробел**: старт или пауза
+- **Стрелки влево/вправо**: перейти по кадрам
+- **Колесо на таймлайне**: двигаться по времени
+- **Shift + колесо** на таймлайне: масштаб таймлайна
+
+### Промпты
+- **Двойной клик** по тексту на таймлайне: изменить промпт
+- **Потянуть правый край** блока: изменить длительность
+- **Клик по пустому месту**: добавить промпт
+- **Правый клик** по блоку: удалить промпт
+
+### Генерация
+- Открой вкладку **Генерация**
+- При желании загрузи пример
+- Нажми **Сгенерировать**
+
+### Контроль движения
+- Ограничения можно добавлять после первой генерации
+- Клик по дорожке на таймлайне добавляет ключевой кадр
+- Правый клик по ключу удаляет его
+- Для правки позы перейди в режим редактирования в блоке **Контроль**
+"""
+
+DEMO_UI_QUICK_START_MODAL_MD = (
+    DEMO_UI_QUICK_START_CORE_MD
+    + """
+
+Подробная памятка лежит во вкладке **Справка**.
+"""
+)
+
+DEMO_UI_INSTRUCTIONS_TAB_MD = (
+    """
+## Как пользоваться
+
+"""
+    + DEMO_UI_QUICK_START_CORE_MD
+    + """
+
+---
+
+### Генерация движения
+
+1. Измени текст на таймлайне.
+2. Настрой длительность промпта, потянув край блока.
+3. Добавь ограничения, если нужно точно управлять позой или траекторией.
+4. Нажми **Сгенерировать**.
+5. Если создано несколько вариантов, кликни по нужному персонажу, чтобы выбрать его.
+
+### Таймлайн
+
+1. Клик по дорожке добавляет ключевой кадр.
+2. Ctrl/Cmd + перетаскивание добавляет интервал.
+3. Режим редактирования позволяет поправить позу до или после добавления ключа.
+
+### Типы контроля
+
+- **Full-Body**: вся поза персонажа
+- **2D Root**: путь персонажа по полу
+- **End-Effectors**: руки и ноги
+
+### Сохранение и экспорт
+
+В блоке **Файлы** можно сохранить движение, ограничения или целый пример. В блоке **Экспорт** можно скачать движение, видео или скриншот.
 """
 )

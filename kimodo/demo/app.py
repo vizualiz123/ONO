@@ -1,8 +1,15 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-import base64
+import gc
 import os
+
+if os.name == "nt":
+    os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "max_split_size_mb:128")
+else:
+    os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+os.environ.setdefault("TEXT_ENCODER_DEVICE", "cpu")
+
 import shutil
 import threading
 import time
@@ -12,7 +19,6 @@ import numpy as np
 import torch
 
 import viser
-from kimodo.assets import DEMO_ASSETS_ROOT
 from kimodo.model.load_model import load_model
 from kimodo.model.registry import resolve_model_name
 from kimodo.skeleton import SkeletonBase, SOMASkeleton30
@@ -25,10 +31,12 @@ from kimodo.viz.viser_utils import (
     FullbodyKeyframeSet,
     RootKeyframe2DSet,
 )
-from viser.theme import TitlebarButton, TitlebarConfig, TitlebarImage
+from viser.theme import TitlebarConfig
 
 from . import generation, ui
 from .config import (
+    APP_PANEL_LABEL,
+    APP_TITLE,
     DARK_THEME,
     DEFAULT_CUR_DURATION,
     DEFAULT_MODEL,
@@ -52,10 +60,19 @@ from .queue_manager import QueueManager, UserQueue
 from .state import ClientSession, ModelBundle
 
 
+def _env_flag(name: str, default: bool = True) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() not in {"0", "false", "no", "off"}
+
+
 class Demo:
     def __init__(self, default_model_name: str = DEFAULT_MODEL):
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
         print(f"Using device: {self.device}")
+        self.aggressive_gpu_cleanup = _env_flag("KIMODO_AGGRESSIVE_GPU_CLEANUP", True)
+        self.keep_text_encoder_cpu = _env_flag("KIMODO_TEXT_ENCODER_CPU", True)
         self.models: dict[str, ModelBundle] = {}
         self._text_encoder = None
         resolved = resolve_model_name(default_model_name, "Kimodo")
@@ -63,6 +80,7 @@ class Demo:
             raise ValueError(f"Unknown model '{default_model_name}'. Expected one of: {MODEL_NAMES}")
         self.default_model_name = resolved
         self.ensure_examples_layout()
+        self.optimize_gpu_memory("startup")
         self.load_model(self.default_model_name)
 
         # Serialize GPU-bound generation across all clients
@@ -77,7 +95,7 @@ class Demo:
         self.server = viser.ViserServer(
             host=SERVER_NAME,
             port=SERVER_PORT,
-            label="Kimodo",
+            label=APP_TITLE,
             enable_camera_keyboard_controls=False,  # don't move the camera with the arrow keys
         )
         self.server.scene.world_axes.visible = False  # used for debugging
@@ -124,9 +142,59 @@ class Demo:
     def get_examples_base_dir(self, model_name: str, absolute: bool = True) -> str:
         return MODEL_EXAMPLES_DIRS[model_name]
 
+    def optimize_gpu_memory(self, reason: str = "") -> None:
+        """Release unused Python and CUDA memory as aggressively as possible."""
+        gc.collect()
+        if not torch.cuda.is_available():
+            return
+        try:
+            for device_idx in range(torch.cuda.device_count()):
+                with torch.cuda.device(device_idx):
+                    torch.cuda.empty_cache()
+                    torch.cuda.reset_peak_memory_stats()
+            torch.cuda.ipc_collect()
+            label = f" ({reason})" if reason else ""
+            print(f"GPU memory cache cleared{label}")
+        except Exception as error:
+            print(f"GPU memory cleanup skipped: {type(error).__name__}: {error}")
+
+    def unload_cached_models(self, keep_model_name: str | None = None) -> None:
+        """Drop inactive model bundles so switching models does not accumulate VRAM."""
+        names_to_unload = [name for name in self.models if name != keep_model_name]
+        if not names_to_unload:
+            return
+
+        for name in names_to_unload:
+            bundle = self.models.pop(name, None)
+            model = getattr(bundle, "model", None) if bundle is not None else None
+            if model is not None:
+                try:
+                    model.to("cpu")
+                except Exception:
+                    pass
+            del bundle
+            print(f"Unloaded cached model {name}")
+        self.optimize_gpu_memory("after unloading cached models")
+
+    def move_text_encoder_to_cpu(self) -> None:
+        if not self.keep_text_encoder_cpu or self._text_encoder is None:
+            return
+        if not hasattr(self._text_encoder, "to"):
+            return
+        try:
+            self._text_encoder.to(device="cpu")
+        except TypeError:
+            self._text_encoder.to("cpu")
+        except Exception as error:
+            print(f"Text encoder CPU move skipped: {type(error).__name__}: {error}")
+
     def load_model(self, model_name: str) -> ModelBundle:
         if model_name in self.models:
             return self.models[model_name]
+
+        if self.aggressive_gpu_cleanup:
+            self.unload_cached_models()
+            self.optimize_gpu_memory(f"before loading {model_name}")
 
         print(f"Loading model {model_name}...")
         try:
@@ -142,6 +210,7 @@ class Demo:
         if hasattr(model, "text_encoder"):
             if self._text_encoder is None:
                 self._text_encoder = model.text_encoder
+                self.move_text_encoder_to_cpu()
             model.text_encoder = CachedTextEncoder(model.text_encoder, model_name=model_name)
 
         skeleton = model.motion_rep.skeleton
@@ -156,6 +225,8 @@ class Demo:
         self.models[model_name] = bundle
         print(f"Model {model_name} loaded successfully")
         self.prewarm_embedding_cache(model_name, bundle.model)
+        if self.aggressive_gpu_cleanup:
+            self.optimize_gpu_memory(f"after loading {model_name}")
         return bundle
 
     def prewarm_embedding_cache(self, model_name: str, model: object) -> None:
@@ -353,13 +424,13 @@ class Demo:
         else:
             # Show quick start popup when a browser client connects (non-HF mode).
             with client.gui.add_modal(
-                "Welcome — Quick Start",
+                "Быстрый старт",
                 size="xl",
                 show_close_button=True,
                 save_choice="kimodo.demo.quick_start_ack",
             ) as modal:
                 client.gui.add_markdown(DEMO_UI_QUICK_START_MODAL_MD)
-                client.gui.add_button("Got it (don't remind me again)").on_click(lambda _event: modal.close())
+                client.gui.add_button("Понятно").on_click(lambda _event: modal.close())
             self._setup_demo_for_client(client)
 
     def setup_scene(self, client: viser.ClientHandle) -> None:
@@ -558,6 +629,8 @@ class Demo:
         try:
             session = self.client_sessions[client.client_id]
             model_bundle = self.load_model(session.model_name)
+            if self.aggressive_gpu_cleanup:
+                self.optimize_gpu_memory("before generation")
             generation.generate(
                 client=client,
                 session=session,
@@ -577,6 +650,8 @@ class Demo:
                 add_character_motion=self.add_character_motion,
             )
         finally:
+            if self.aggressive_gpu_cleanup:
+                self.optimize_gpu_memory("after generation")
             self._generation_lock.release()
 
     def set_frame(self, client_id: int, frame_idx: int, update_timeline: bool = True):
@@ -638,46 +713,8 @@ class Demo:
         if grid_handle is not None:
             grid_handle.section_color = theme["grid"]
 
-        #
-        # setup theme
-        #
-        buttons = (
-            TitlebarButton(
-                text="Documentation",
-                icon="Description",
-                href="https://research.nvidia.com/labs/sil/projects/kimodo/docs/interactive_demo/index.html",
-            ),
-            TitlebarButton(
-                text="Project Page",
-                icon=None,
-                href="https://research.nvidia.com/labs/sil/projects/kimodo/",
-            ),
-            TitlebarButton(
-                text="Github",
-                icon="GitHub",
-                href="https://github.com/nv-tlabs/kimodo",
-            ),
-        )
-        assets_dir = DEMO_ASSETS_ROOT
-        logo_light_path = assets_dir / "nvidia_logo.png"
-        logo_dark_path = assets_dir / "nvidia_logo_dark.png"
-        if logo_light_path.exists():
-            light_b64 = base64.standard_b64encode(logo_light_path.read_bytes()).decode("ascii")
-            dark_b64 = (
-                base64.standard_b64encode(logo_dark_path.read_bytes()).decode("ascii")
-                if logo_dark_path.exists()
-                else None
-            )
-            image = TitlebarImage(
-                image_url_light=f"data:image/png;base64,{light_b64}",
-                image_url_dark=(f"data:image/png;base64,{dark_b64}" if dark_b64 else None),
-                image_alt="NVIDIA",
-                href="https://www.nvidia.com/",
-            )
-        else:
-            image = None
-        titlebar_theme = TitlebarConfig(buttons=buttons, image=image, title_text="Kimodo")
-        client.gui.set_panel_label("Kimodo")
+        titlebar_theme = TitlebarConfig(buttons=(), image=None, title_text=APP_TITLE)
+        client.gui.set_panel_label(APP_PANEL_LABEL)
         client.gui.configure_theme(
             titlebar_content=titlebar_theme,
             control_layout="floating",  # "floating",  # ['floating', 'collapsible', 'fixed']

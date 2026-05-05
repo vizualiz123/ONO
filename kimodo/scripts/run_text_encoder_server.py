@@ -3,6 +3,10 @@
 
 import argparse
 import os
+import tempfile
+
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
+os.environ.setdefault("TEXT_ENCODER_DEVICE", "cpu")
 
 import gradio as gr
 import numpy as np
@@ -15,7 +19,7 @@ os.environ["HF_ENABLE_PARALLEL_LOADING"] = "YES"
 DEFAULT_TEXT = "A person walks and falls to the ground."
 DEFAULT_SERVER_NAME = "0.0.0.0"
 DEFAULT_SERVER_PORT = 9550
-DEFAULT_TMP_FOLDER = "/tmp/text_encoder/"
+DEFAULT_TMP_FOLDER = os.path.join(tempfile.gettempdir(), "kimodo_text_encoder")
 DEFAULT_TEXT_ENCODER = "llm2vec"
 TEXT_ENCODER_PRESETS = {
     "llm2vec": {
@@ -163,7 +167,12 @@ def main():
         )
         clear.click(fn=clear_fn, inputs=None, outputs=outputs)
 
-    demo.launch(server_name=server_name, server_port=server_port)
+    demo.launch(
+        server_name=server_name,
+        server_port=server_port,
+        show_error=True,
+        allowed_paths=[args.tmp_folder],
+    )
 
 
 if __name__ == "__main__":

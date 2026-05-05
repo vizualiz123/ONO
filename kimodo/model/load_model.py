@@ -30,7 +30,15 @@ TEXT_ENCODER_PRESETS = {
             "llm_dim": 4096,
             "device": "auto",
         },
-    }
+    },
+    "dummy": {
+        "target": "kimodo.model.text_encoder_api.DummyTextEncoder",
+        "kwargs": {
+            "llm_dim": 4096,
+            "device": "cpu",
+            "dtype": "float32",
+        },
+    },
 }
 
 

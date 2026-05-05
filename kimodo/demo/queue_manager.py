@@ -10,11 +10,7 @@ from typing import Any
 
 import viser
 
-from .config import DEMO_UI_QUICK_START_MODAL_MD, MAX_SESSION_MINUTES
-
-# Link for "Duplicate this Space" on Hugging Face (used in queue and expiry modals).
-DUPLICATE_SPACE_URL = "https://huggingface.co/spaces/nvidia/Kimodo?duplicate=true"
-GITHUB_REPO_URL = "https://github.com/nv-tlabs/kimodo"
+from .config import APP_TITLE, DEMO_UI_QUICK_START_MODAL_MD, MAX_SESSION_MINUTES
 
 # How often to refresh queue modal content (position, total, estimated wait).
 QUEUE_MODAL_REFRESH_INTERVAL_SEC = 15
@@ -107,49 +103,41 @@ class UserQueue:
 
 def _format_wait(seconds: float) -> str:
     if seconds < 60:
-        return "less than a minute"
+        return "меньше минуты"
     mins = int(math.ceil(seconds / 60))
-    return f"~{mins} minute{'s' if mins != 1 else ''}"
+    return f"~{mins} мин"
 
 
 def _queue_modal_markdown(position: int, total: int, estimated_wait_sec: float) -> str:
     wait_str = _format_wait(estimated_wait_sec)
     mins = int(MAX_SESSION_MINUTES) if MAX_SESSION_MINUTES == int(MAX_SESSION_MINUTES) else MAX_SESSION_MINUTES
-    return f"""## Kimodo Demo — Please Wait
+    return f"""## {APP_TITLE}: очередь
 
-This demo runs with limited capacity.
-Each user gets **{mins} minute{"s" if mins != 1 else ""}** of interactive time.
+Сейчас доступ ограничен. У каждого пользователя есть **{mins} мин** интерактивного времени.
 
-**Your position in queue:** {position} / {total}
+**Позиция в очереди:** {position} / {total}
 
-**Estimated wait:** {wait_str}
+**Примерное ожидание:** {wait_str}
 
-Please keep this tab open — the demo will start automatically when it's your turn.
-
----
-*Want unlimited access? [Duplicate this Space]({DUPLICATE_SPACE_URL}) or clone the [GitHub repo]({GITHUB_REPO_URL}) to run locally!*
+Оставь вкладку открытой. Интерфейс запустится автоматически, когда подойдет очередь.
 """
 
 
 def _welcome_modal_markdown() -> str:
     mins = int(MAX_SESSION_MINUTES) if MAX_SESSION_MINUTES == int(MAX_SESSION_MINUTES) else MAX_SESSION_MINUTES
-    return f"""## Welcome to Kimodo Demo
+    return f"""## {APP_TITLE}
 
-You have been granted a **{mins}-minute** demo session.
-Your session timer has started.
+Сессия активна на **{mins} мин**.
 
-Click the button below to begin!
+Нажми кнопку ниже, чтобы начать.
 """
 
 
 def _expiry_modal_markdown() -> str:
     mins = int(MAX_SESSION_MINUTES) if MAX_SESSION_MINUTES == int(MAX_SESSION_MINUTES) else MAX_SESSION_MINUTES
-    return f"""## Session Expired
+    return f"""## Сессия закончилась
 
-Your {mins}-minute demo session has ended.
-Thank you for trying Kimodo!
-
-Refresh this page to rejoin the queue, or [duplicate this Space]({DUPLICATE_SPACE_URL}) for unlimited access.
+Твоя сессия на {mins} мин завершилась. Обнови страницу, чтобы снова попасть в очередь.
 """
 
 
@@ -226,7 +214,7 @@ class QueueManager:
         md_content = _queue_modal_markdown(pos, total, wait_sec)
 
         modal = client.gui.add_modal(
-            "Kimodo Demo — Please Wait",
+            f"{APP_TITLE}: очередь",
             size="xl",
             show_close_button=False,
         )
@@ -238,13 +226,13 @@ class QueueManager:
     def _show_quick_start_modal(self, client: viser.ClientHandle) -> None:
         """Show the quick start instructions modal (same as non-HF mode)."""
         with client.gui.add_modal(
-            "Welcome — Quick Start",
+            "Быстрый старт",
             size="xl",
             show_close_button=True,
             save_choice="kimodo.demo.quick_start_ack",
         ) as quick_start_modal:
             client.gui.add_markdown(DEMO_UI_QUICK_START_MODAL_MD)
-            client.gui.add_button("Got it (don't remind me again)").on_click(lambda _: quick_start_modal.close())
+            client.gui.add_button("Понятно").on_click(lambda _: quick_start_modal.close())
 
     def _show_welcome_modal(self, client: viser.ClientHandle) -> None:
         client_id = client.client_id
@@ -254,13 +242,13 @@ class QueueManager:
             self._show_quick_start_modal(client)
 
         modal = client.gui.add_modal(
-            "Welcome to Kimodo Demo",
+            APP_TITLE,
             size="xl",
             show_close_button=True,
         )
         with modal:
             client.gui.add_markdown(_welcome_modal_markdown())
-            client.gui.add_button("Start Demo").on_click(_on_start_demo)
+            client.gui.add_button("Начать").on_click(_on_start_demo)
         with self._lock:
             self._welcome_modal_handles[client_id] = modal
 
@@ -325,7 +313,7 @@ class QueueManager:
         if client is not None:
             try:
                 with client.gui.add_modal(
-                    "Session Expired",
+                    "Сессия закончилась",
                     size="lg",
                     show_close_button=False,
                 ) as modal_ctx:

@@ -71,3 +71,25 @@ class TextEncoderAPI:
         padded_tensor = torch.from_numpy(padded_tensor)
         padded_tensor = padded_tensor.to(device=self.device, dtype=self.dtype)
         return padded_tensor, lengths
+
+
+class DummyTextEncoder:
+    """Fallback encoder for launching the UI without gated Hugging Face access."""
+
+    def __init__(self, llm_dim: int = 4096, device: str = "cpu", dtype: str = "float32"):
+        self.llm_dim = llm_dim
+        self.device = device
+        self.dtype = getattr(torch, dtype)
+
+    def to(self, device=None, dtype=None):
+        if device is not None:
+            self.device = device
+        if dtype is not None:
+            self.dtype = dtype
+        return self
+
+    def __call__(self, texts):
+        if isinstance(texts, str):
+            texts = [texts]
+        encoded_text = torch.zeros((len(texts), 1, self.llm_dim), device=self.device, dtype=self.dtype)
+        return encoded_text, [1 for _ in texts]

@@ -186,8 +186,8 @@ def create_gui(
     #
     # Playback and Motion generation controls
     #
-    with tab_group.add_tab("Generate", viser.Icon.WALK):
-        with client.gui.add_folder("Model Selection", expand_by_default=True):
+    with tab_group.add_tab("Генерация", viser.Icon.WALK):
+        with client.gui.add_folder("Модель", expand_by_default=True):
             info = get_model_info(model_name)
             if info is None:
                 info = get_model_info(next(iter(MODEL_NAMES)))
@@ -219,28 +219,28 @@ def create_gui(
                 else (version_options[0] if version_options else "")
             )
             gui_dataset_selector = client.gui.add_dropdown(
-                "Training dataset",
+                "Датасет",
                 options=datasets,
                 initial_value=dataset_ui_label,
                 visible=not HF_MODE,
             )
             gui_skeleton_selector = client.gui.add_dropdown(
-                "Model" if HF_MODE else "Skeleton",
+                "Модель" if HF_MODE else "Скелет",
                 options=skeleton_labels,
                 initial_value=initial_skeleton_label,
             )
             gui_version_selector = client.gui.add_dropdown(
-                "Version",
+                "Версия",
                 options=version_options,
                 initial_value=initial_version,
             )
             gui_version_selector.visible = len(models_for_pair) > 1
             gui_model_display = client.gui.add_markdown(
-                content=f"**Model:** {initial_version}",
+                content=f"**Модель:** {initial_version}",
             )
             gui_load_model_button = client.gui.add_button(
-                "Load model",
-                hint="Load the selected model (dataset, skeleton, version).",
+                "Загрузить модель",
+                hint="Загрузить выбранную модель.",
             )
 
             class ModelSelectorHandle:
@@ -276,11 +276,11 @@ def create_gui(
                         info.display_name if info.display_name in self._version.options else self._version.options[0]
                     )
                     self._version.visible = len(models) > 1
-                    self._display.content = f"**Model:** {self._version.value}"
+                    self._display.content = f"**Модель:** {self._version.value}"
 
             gui_model_selector = ModelSelectorHandle()
 
-        with client.gui.add_folder("Examples", expand_by_default=True):
+        with client.gui.add_folder("Примеры", expand_by_default=True):
             examples_base_dir = demo.get_examples_base_dir(model_name, absolute=True)
             example_dict = viser_utils.load_example_cases(examples_base_dir)
             example_names = list(example_dict.keys())
@@ -292,8 +292,8 @@ def create_gui(
                 initial_value=example_names[0],
             )
             gui_load_example_button = client.gui.add_button(
-                "Load Example",
-                hint="Load the selected example.",
+                "Загрузить пример",
+                hint="Загрузить выбранный пример.",
                 disabled=not example_dict,
             )
 
@@ -313,11 +313,11 @@ def create_gui(
                     return
                 gui_examples_dropdown.value = example_names_local[0]
 
-        with client.gui.add_folder("Generate", expand_by_default=True):
-            gui_duration = client.gui.add_markdown(content=f"Total duration: {DEFAULT_CUR_DURATION:.1f} (sec)")
+        with client.gui.add_folder("Генерация", expand_by_default=True):
+            gui_duration = client.gui.add_markdown(content=f"Длительность: {DEFAULT_CUR_DURATION:.1f} сек")
 
             def update_duration_gui(duration):
-                gui_duration.content = f"Total duration: {duration:.1f} (sec)"
+                gui_duration.content = f"Длительность: {duration:.1f} сек"
 
             def compute_prompt_num_frames(prompt_values):
                 """Convert timeline prompt bounds to per-prompt frame counts.
@@ -351,7 +351,7 @@ def create_gui(
                 update_duration_gui(cur_duration)
 
             gui_num_samples_slider = client.gui.add_slider(
-                "Num Samples",
+                "Вариантов",
                 min=1,
                 max=10,
                 step=1,
@@ -365,26 +365,26 @@ def create_gui(
                 visible="soma" in (model_name or ""),
             )
 
-            with client.gui.add_folder("Model Parameters", expand_by_default=False):
+            with client.gui.add_folder("Параметры модели", expand_by_default=False):
                 gui_seed = client.gui.add_number("Seed", initial_value=42)
 
-                with client.gui.add_folder("Diffusion", expand_by_default=False):
+                with client.gui.add_folder("Диффузия", expand_by_default=False):
                     gui_diffusion_steps_slider = client.gui.add_slider(
-                        "Denoising Steps",
+                        "Шаги очистки",
                         min=2,
                         max=1000,
                         step=10,
                         initial_value=100,
                     )
-                with client.gui.add_folder("Classifier-Free Guidance", expand_by_default=False):
+                with client.gui.add_folder("Guidance", expand_by_default=False):
                     gui_cfg_checkbox = client.gui.add_checkbox(
-                        "Enable",
+                        "Включить",
                         initial_value=True,
                         visible=True,
                     )
 
                     gui_cfg_text_weight_slider = client.gui.add_slider(
-                        "Text Weight",
+                        "Вес текста",
                         min=0.0,
                         max=5.0,
                         step=0.1,
@@ -392,7 +392,7 @@ def create_gui(
                         visible=True,
                     )
                     gui_cfg_constraint_weight_slider = client.gui.add_slider(
-                        "Constraint Weight",
+                        "Вес контроля",
                         min=0.0,
                         max=5.0,
                         step=0.1,
@@ -400,12 +400,12 @@ def create_gui(
                         visible=True,
                     )
                 with client.gui.add_folder(
-                    "Transitions",
+                    "Переходы",
                     expand_by_default=False,
                     visible=SHOW_TRANSITION_PARAMS,
                 ):
                     gui_num_transition_frames_slider = client.gui.add_slider(
-                        "Transition frames",
+                        "Кадры перехода",
                         min=1,
                         max=10,
                         step=1,
@@ -413,17 +413,17 @@ def create_gui(
                         visible=True,
                     )
 
-            with client.gui.add_folder("Post Processing", expand_by_default=False):
+            with client.gui.add_folder("Постобработка", expand_by_default=False):
                 _model_name = model_name or ""
                 _postprocess_visible = "g1" not in _model_name
                 gui_postprocess_checkbox = client.gui.add_checkbox(
-                    "Enable",
+                    "Включить",
                     initial_value=INIT_POSTPROCESSING,
                     hint="Apply motion post-processing (not available for G1)",
                     visible=_postprocess_visible,
                 )
                 gui_root_margin = client.gui.add_number(
-                    "Root Margin",
+                    "Допуск корня",
                     min=0.0,
                     # max=0.5,
                     step=0.01,
@@ -440,43 +440,43 @@ def create_gui(
                     gui_root_margin.visible = gui_postprocess_checkbox.value
 
                 gui_real_robot_rotations_checkbox = client.gui.add_checkbox(
-                    "Real robot rotations",
+                    "Ротации робота",
                     initial_value=False,
                     hint="Project joint rotations to G1 real robot DoF (1-DoF per joint) and clamp to axis limits from the MuJoCo XML.",
                     visible="g1" in _model_name,
                 )
 
-            gui_generate_button = client.gui.add_button("Generate", color="green")
-        with client.gui.add_folder("Constraints", expand_by_default=False):
+            gui_generate_button = client.gui.add_button("Сгенерировать", color="green")
+        with client.gui.add_folder("Контроль", expand_by_default=False):
             gui_gizmo_space_dropdown = client.gui.add_dropdown(
-                "Gizmo space",
+                "Ось манипулятора",
                 ("Local", "World"),
                 initial_value="Local",
                 visible="g1" not in _model_name,
             )
-            gui_edit_constraint_button = client.gui.add_button("Enter Editing Mode")
+            gui_edit_constraint_button = client.gui.add_button("Режим редактирования")
             gui_snap_to_constraint_button = client.gui.add_button(
-                "Snap to Constraint",
+                "Перейти к ключу",
                 disabled=True,
             )
             gui_reset_constraint_button = client.gui.add_button(
-                "Reset Constraint",
+                "Сбросить ключ",
                 disabled=True,
             )
             gui_undo_drag_button = client.gui.add_button(
-                "Undo Move",
+                "Отменить движение",
                 disabled=True,
             )
 
-            with client.gui.add_folder("Root 2D Options", expand_by_default=True):
+            with client.gui.add_folder("Путь по полу", expand_by_default=True):
                 gui_dense_path_checkbox = client.gui.add_checkbox(
-                    "Make Smooth Path",
+                    "Сгладить путь",
                     initial_value=False,
                     visible=True,
                 )
 
             gui_show_only_current_constraint_checkbox = client.gui.add_checkbox(
-                "Show only Current",
+                "Только текущий",
                 initial_value=False,
                 hint="Show only constraint overlays at the current frame; uncheck to show all.",
             )
@@ -493,7 +493,7 @@ def create_gui(
                 apply_constraint_overlay_visibility(session)
 
             gui_clear_all_constraints_button = client.gui.add_button(
-                "Clear All Constraints",
+                "Очистить контроль",
                 color="red",
             )
 
@@ -661,14 +661,14 @@ def create_gui(
                 apply_constraint_overlay_visibility(session)
 
         with client.gui.add_folder(
-            "Load/Save",
+            "Файлы",
             expand_by_default=False,
             visible=not HF_MODE,
         ):
-            with client.gui.add_folder("Motion", expand_by_default=False):
-                gui_save_motion_path_text = client.gui.add_text("Save Path", initial_value="output")
+            with client.gui.add_folder("Движение", expand_by_default=False):
+                gui_save_motion_path_text = client.gui.add_text("Куда сохранить", initial_value="output")
                 gui_save_motion_format_dropdown = client.gui.add_dropdown(
-                    "Save Format",
+                    "Формат",
                     options=(
                         ["NPZ", "CSV"]
                         if "g1" in model_name.lower()
@@ -679,54 +679,54 @@ def create_gui(
                     initial_value="NPZ",
                 )
                 gui_save_bvh_standard_tpose_checkbox = client.gui.add_checkbox(
-                    "Standard T-pose",
+                    "Стандартная T-поза",
                     initial_value=False,
                     hint="For BVH export, use the standard T-pose rest skeleton.",
                     visible=False,
                 )
                 gui_save_motion_button = client.gui.add_button(
-                    "Save Motion",
-                    hint="Save the current motion (format + path above)",
+                    "Сохранить движение",
+                    hint="Сохранить текущее движение.",
                 )
                 gui_load_motion_path_text = client.gui.add_text(
-                    "Load Path",
+                    "Откуда загрузить",
                     initial_value="output.npz",
                     hint="SOMA .bvh, Kimodo or AMASS .npz, or G1 MuJoCo .csv",
                 )
                 gui_load_motion_button = client.gui.add_button(
-                    "Load Motion",
-                    hint="Load the selected motion",
+                    "Загрузить движение",
+                    hint="Загрузить выбранное движение.",
                 )
-            with client.gui.add_folder("Constraints", expand_by_default=False):
+            with client.gui.add_folder("Контроль", expand_by_default=False):
                 gui_save_constraints_path_text = client.gui.add_text(
-                    "Save Path", initial_value="output_constraints.json"
+                    "Куда сохранить", initial_value="output_constraints.json"
                 )
-                gui_save_constraints_button = client.gui.add_button("Save Constraints")
+                gui_save_constraints_button = client.gui.add_button("Сохранить контроль")
                 gui_load_constraints_path_text = client.gui.add_text(
-                    "Load Path", initial_value="output_constraints.json"
+                    "Откуда загрузить", initial_value="output_constraints.json"
                 )
-                gui_load_constraints_button = client.gui.add_button("Load Constraints")
-            with client.gui.add_folder("Example", expand_by_default=False):
+                gui_load_constraints_button = client.gui.add_button("Загрузить контроль")
+            with client.gui.add_folder("Пример", expand_by_default=False):
                 gui_save_example_path_text = client.gui.add_text(
-                    "Save Dir",
+                    "Папка сохранения",
                     initial_value=os.path.join(
                         demo.get_examples_base_dir(model_name, absolute=True),
                         "custom_example_1",
                     ),
                 )
-                gui_save_example_button = client.gui.add_button("Save Example")
+                gui_save_example_button = client.gui.add_button("Сохранить пример")
                 gui_load_example_path_text = client.gui.add_text(
-                    "Load Dir",
+                    "Папка загрузки",
                     initial_value=os.path.join(
                         demo.get_examples_base_dir(model_name, absolute=True),
                         "custom_example_1",
                     ),
                 )
                 gui_load_gt_checkbox = client.gui.add_checkbox(
-                    "Load GT instead",
+                    "Загрузить GT",
                     initial_value=False,
                 )
-                gui_load_example_from_path_button = client.gui.add_button("Load Example")
+                gui_load_example_from_path_button = client.gui.add_button("Загрузить пример")
 
             def _get_primary_motion(session: ClientSession):
                 return list(session.motions.values())[0]
@@ -1224,35 +1224,35 @@ def create_gui(
                         color="red",
                     )
 
-        with client.gui.add_folder("Exports", expand_by_default=False):
-            with client.gui.add_folder("Screenshot", expand_by_default=False, visible=not HF_MODE):
+        with client.gui.add_folder("Экспорт", expand_by_default=False):
+            with client.gui.add_folder("Скриншот", expand_by_default=False, visible=not HF_MODE):
                 gui_screenshot_path_text = client.gui.add_text(
-                    "Save Path",
+                    "Имя файла",
                     initial_value="render.png",
                     hint="Filename for the screenshot (PNG).",
                 )
                 gui_screenshot_button = client.gui.add_button(
-                    "Download Screenshot",
+                    "Скачать скриншот",
                     hint="Capture the current canvas and download a PNG.",
                 )
-            with client.gui.add_folder("Video", expand_by_default=False, visible=not HF_MODE):
+            with client.gui.add_folder("Видео", expand_by_default=False, visible=not HF_MODE):
                 gui_video_path_text = client.gui.add_text(
-                    "Save Path",
+                    "Имя файла",
                     initial_value="render.mp4",
                     hint="Filename for the video (MP4).",
                 )
                 gui_video_button = client.gui.add_button(
-                    "Download Video",
+                    "Скачать видео",
                     hint="Render every frame and download as MP4.",
                 )
-            with client.gui.add_folder("Motion", expand_by_default=True):
+            with client.gui.add_folder("Движение", expand_by_default=True):
                 gui_download_name_text = client.gui.add_text(
-                    "Name",
+                    "Имя",
                     initial_value="output",
                     hint="Base filename to save as (extension will be added based on format if omitted).",
                 )
                 gui_download_format_dropdown = client.gui.add_dropdown(
-                    "Format",
+                    "Формат",
                     options=(
                         ["NPZ", "CSV"]
                         if "g1" in model_name.lower()
@@ -1263,14 +1263,14 @@ def create_gui(
                     initial_value="NPZ",
                 )
                 gui_download_bvh_standard_tpose_checkbox = client.gui.add_checkbox(
-                    "Standard T-pose",
+                    "Стандартная T-поза",
                     initial_value=False,
                     hint="For BVH export, use the standard T-pose rest skeleton.",
                     visible=False,
                 )
                 gui_download_button = client.gui.add_button(
-                    "Download",
-                    hint="Download the current motion (format + name above).",
+                    "Скачать",
+                    hint="Скачать текущее движение.",
                 )
 
             def _download_bytes_to_browser(
@@ -2143,9 +2143,9 @@ def create_gui(
             gui_cfg_constraint_weight_slider.visible = val
 
         def exit_editing_mode(session: ClientSession):
-            gui_edit_constraint_button.label = "Enter Editing Mode"
+            gui_edit_constraint_button.label = "Режим редактирования"
             gui_generate_button.disabled = False
-            gui_generate_button.label = "Generate"
+            gui_generate_button.label = "Сгенерировать"
             gui_reset_constraint_button.disabled = True
             if "g1" in session.model_name:
                 gui_gizmo_space_dropdown.value = "Local"
@@ -2184,10 +2184,10 @@ def create_gui(
 
             session.edit_mode = not session.edit_mode
 
-            edit_alert = "Entered editing mode"
-            no_edit_alert = "Exited editing mode"
-            edit_message = "You can now modify pose or path constraints."
-            no_edit_message = "Can now generate motions."
+            edit_alert = "Режим редактирования включен"
+            no_edit_alert = "Режим редактирования выключен"
+            edit_message = "Теперь можно менять позу и путь."
+            no_edit_message = "Теперь можно снова генерировать движение."
             event_client.add_notification(
                 title=edit_alert if session.edit_mode else no_edit_alert,
                 body=edit_message if session.edit_mode else no_edit_message,
@@ -2196,9 +2196,9 @@ def create_gui(
             )
 
             if session.edit_mode:
-                gui_edit_constraint_button.label = "Exit Editing Mode"
+                gui_edit_constraint_button.label = "Выйти из редактирования"
                 gui_generate_button.disabled = True
-                gui_generate_button.label = "Generate Disabled In Editing Mode"
+                gui_generate_button.label = "Генерация выключена в режиме редактирования"
                 if "g1" in session.model_name:
                     gui_gizmo_space_dropdown.value = "Local"
                 gui_gizmo_space_dropdown.disabled = True
@@ -2895,7 +2895,7 @@ def create_gui(
                         gui_generate_button.disabled = False
                         gui_snap_to_constraint_button.disabled = False
                         client.timeline.enable_constraints()
-                        gui_generate_button.label = "Generate"
+                        gui_generate_button.label = "Сгенерировать"
                         gui_save_example_button.disabled = False
                         gui_save_motion_button.disabled = False
                         gui_download_button.disabled = False
@@ -2916,7 +2916,7 @@ def create_gui(
                     gui_edit_constraint_button.disabled = True
                     gui_generate_button.disabled = True
                     gui_snap_to_constraint_button.disabled = True
-                    gui_generate_button.label = "Choose Sample Before Generating"
+                    gui_generate_button.label = "Сначала выбери вариант"
                     gui_save_example_button.disabled = True
                     gui_save_motion_button.disabled = True
                     gui_download_button.disabled = True
@@ -2967,11 +2967,11 @@ def create_gui(
     #
     # Visualization settings
     #
-    with tab_group.add_tab("Visualize", viser.Icon.EYE):
-        with client.gui.add_folder("Playback", expand_by_default=True):
-            gui_model_fps = client.gui.add_number("Model FPS", initial_value=model_fps, disabled=True)
+    with tab_group.add_tab("Вид", viser.Icon.EYE):
+        with client.gui.add_folder("Воспроизведение", expand_by_default=True):
+            gui_model_fps = client.gui.add_number("FPS модели", initial_value=model_fps, disabled=True)
             gui_playback_speed_buttons = client.gui.add_button_group(
-                "Playback Speed",
+                "Скорость",
                 options=[
                     "0.5x",
                     "1x",
@@ -3047,42 +3047,42 @@ def create_gui(
                 session = demo.client_sessions[client_id]
                 session.playback_speed = speed_map[gui_playback_speed_buttons.value]
 
-        with client.gui.add_folder("Body options", expand_by_default=True):
-            gui_viz_skinned_mesh_checkbox = client.gui.add_checkbox("Show Mesh", initial_value=True)
+        with client.gui.add_folder("Персонаж", expand_by_default=True):
+            gui_viz_skinned_mesh_checkbox = client.gui.add_checkbox("Показать меш", initial_value=True)
             gui_viz_skinned_mesh_opacity_slider = client.gui.add_slider(
-                "Mesh Opacity", min=0.0, max=1.0, step=0.01, initial_value=1.0
+                "Прозрачность меша", min=0.0, max=1.0, step=0.01, initial_value=1.0
             )
-            gui_viz_skeleton_checkbox = client.gui.add_checkbox("Show Skeleton", initial_value=False)
-            gui_viz_foot_contacts_checkbox = client.gui.add_checkbox("Show Foot Contacts", initial_value=False)
+            gui_viz_skeleton_checkbox = client.gui.add_checkbox("Показать скелет", initial_value=False)
+            gui_viz_foot_contacts_checkbox = client.gui.add_checkbox("Контакты стоп", initial_value=False)
             gui_viz_foot_contacts_checkbox.visible = gui_viz_skeleton_checkbox.value
-        with client.gui.add_folder("Camera options", expand_by_default=True):
+        with client.gui.add_folder("Камера", expand_by_default=True):
             gui_camera_fov_slider = client.gui.add_slider(
-                "Camera FOV (deg)",
+                "Угол камеры",
                 min=30.0,
                 max=90.0,
                 step=1.0,
                 initial_value=45.0,
             )
             client.camera.fov = np.deg2rad(gui_camera_fov_slider.value)
-        with client.gui.add_folder("Interface options", expand_by_default=True):
+        with client.gui.add_folder("Интерфейс", expand_by_default=True):
             gui_show_timeline_checkbox = client.gui.add_checkbox(
-                "Show Timeline",
+                "Показать таймлайн",
                 initial_value=True,
             )
             gui_show_constraint_tracks_checkbox = client.gui.add_checkbox(
-                "Show Constraint tracks",
+                "Показать дорожки контроля",
                 initial_value=True,
             )
             gui_show_constraint_labels_checkbox = client.gui.add_checkbox(
-                "Show Constraint labels",
+                "Показать подписи контроля",
                 initial_value=True,
             )
             gui_show_starting_direction_checkbox = client.gui.add_checkbox(
-                "Show Starting Direction",
+                "Показать стартовое направление",
                 initial_value=True,
             )
             gui_dark_mode_checkbox = client.gui.add_checkbox(
-                "Dark Mode",
+                "Темная тема",
                 initial_value=False,  # Default to light mode
             )
             gui_show_constraint_tracks_checkbox.visible = gui_show_timeline_checkbox.value
@@ -3100,7 +3100,7 @@ def create_gui(
             for motion in session.motions.values():
                 motion.character.change_theme(gui_dark_mode_checkbox.value)
 
-        # Show dark mode toggle in titlebar (right of Github), hide sidebar checkbox
+        # Show dark mode toggle in the titlebar and hide the duplicate sidebar checkbox.
         demo.configure_theme(
             client,
             gui_dark_mode_checkbox.value,
@@ -3186,7 +3186,7 @@ def create_gui(
 
     # Instructions tab
     #
-    with tab_group.add_tab("Instructions", viser.Icon.INFO_CIRCLE):
+    with tab_group.add_tab("Справка", viser.Icon.INFO_CIRCLE):
         client.gui.add_markdown(DEMO_UI_INSTRUCTIONS_TAB_MD)
 
     #

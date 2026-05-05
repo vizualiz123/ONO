@@ -35,6 +35,7 @@ class LLM2VecEncoder:
             peft_model_name_or_path=peft_model_name_or_path,
             torch_dtype=torch_dtype,
             cache_dir=cache_dir,
+            low_cpu_mem_usage=True,
         )
 
         env_device = os.environ.get("TEXT_ENCODER_DEVICE")

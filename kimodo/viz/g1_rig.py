@@ -39,7 +39,6 @@ G1_MESH_JOINT_MAP = {
     "waist_pitch_skel": [
         "torso_link_rev_1_0.STL",
         "torso_link.STL",
-        "logo_link.STL",
         "head_link.STL",
     ],
     "left_shoulder_pitch_skel": ["left_shoulder_pitch_link.STL"],
