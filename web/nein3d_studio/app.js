@@ -89,7 +89,37 @@ function setTool(tool) {
   document.querySelectorAll("[data-tool]").forEach((button) => {
     button.classList.toggle("active", button.dataset.tool === tool);
   });
+  document.querySelectorAll("[data-top-tool]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.topTool === tool);
+  });
   els.activeToolLabel.textContent = tool[0].toUpperCase() + tool.slice(1);
+}
+
+function setButtonIcon(button, icon) {
+  const iconNode = button?.querySelector(".button-icon");
+  if (iconNode) {
+    iconNode.textContent = icon;
+  } else if (button) {
+    button.textContent = icon;
+  }
+}
+
+function setRoundIcon(button, icon) {
+  const iconNode = button?.querySelector(".round-icon");
+  if (iconNode) {
+    iconNode.textContent = icon;
+  }
+}
+
+function activatePanel(panelName) {
+  document.querySelectorAll("[data-panel]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.panel === panelName);
+  });
+}
+
+function focusUsdPanel() {
+  activatePanel("assets");
+  $("usdPanel")?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function renderObjects() {
@@ -135,7 +165,7 @@ function renderPromptTrack() {
     clip.className = "clip";
     clip.type = "button";
     clip.textContent = prompt.text;
-    clip.title = "Клик: редактировать prompt справа";
+    clip.title = "Клик: редактировать prompt в нижнем окне";
     const startPct = (prompt.start / (state.frameCount - 1)) * 100;
     const widthPct = ((prompt.end - prompt.start + 1) / state.frameCount) * 100;
     clip.style.left = `${startPct}%`;
@@ -347,8 +377,11 @@ function drawViewport() {
 
 function togglePlayback(force) {
   state.playing = typeof force === "boolean" ? force : !state.playing;
-  $("playTimeline").textContent = state.playing ? "Ⅱ" : "▸";
+  setButtonIcon($("playTimeline"), state.playing ? "Ⅱ" : "▸");
   $("playTimelineBottom").textContent = state.playing ? "Ⅱ" : "▶";
+  document.querySelectorAll('[data-top-action="play"]').forEach((button) => {
+    setRoundIcon(button, state.playing ? "Ⅱ" : "▸");
+  });
   if (state.playing) {
     state.lastTick = performance.now();
     requestAnimationFrame(playLoop);
@@ -487,10 +520,39 @@ function bindEvents() {
   document.querySelectorAll("[data-tool]").forEach((button) => {
     button.addEventListener("click", () => setTool(button.dataset.tool));
   });
+  document.querySelectorAll("[data-top-tool]").forEach((button) => {
+    button.addEventListener("click", () => setTool(button.dataset.topTool));
+  });
+  document.querySelectorAll("[data-top-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = button.dataset.topAction;
+      if (action === "usd") {
+        focusUsdPanel();
+      } else if (action === "generate") {
+        $("generateMotion").click();
+      } else if (action === "play") {
+        togglePlayback();
+      } else if (action === "save") {
+        saveProject();
+      } else if (action === "engine") {
+        window.open(ENGINE_URL, "_blank", "noopener");
+      }
+    });
+  });
+  document.querySelectorAll("[data-menu]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.dataset.menu === "usd") {
+        focusUsdPanel();
+      }
+    });
+  });
   document.querySelectorAll("[data-left-tool]").forEach((button) => {
     button.addEventListener("click", () => {
       document.querySelectorAll("[data-left-tool]").forEach((item) => item.classList.remove("active"));
       button.classList.add("active");
+      if (button.dataset.leftTool === "usd") {
+        focusUsdPanel();
+      }
     });
   });
   document.querySelectorAll("[data-panel]").forEach((button) => {
@@ -526,6 +588,9 @@ function bindEvents() {
   $("openEngine").addEventListener("click", () => window.open(ENGINE_URL, "_blank", "noopener"));
   $("undoAction").addEventListener("click", () => showMessage("Undo", "История действий будет подключена на следующем backend-этапе."));
   $("redoAction").addEventListener("click", () => showMessage("Redo", "История действий будет подключена на следующем backend-этапе."));
+  document.querySelectorAll('[data-toolbar-action="usd"]').forEach((button) => {
+    button.addEventListener("click", focusUsdPanel);
+  });
   $("addRig").addEventListener("click", addRig);
   $("clearScene").addEventListener("click", clearScene);
   $("loadUsd").addEventListener("click", loadUsd);

@@ -90,7 +90,7 @@ textarea:focus {
 
 .app-shell {
   display: grid;
-  grid-template-rows: 42px 38px minmax(0, 1fr) 156px 24px;
+  grid-template-rows: 42px 72px 40px minmax(0, 1fr) 156px 24px;
   width: 100vw;
   height: 100vh;
   background:
@@ -147,7 +147,7 @@ textarea:focus {
 
 .menu button {
   width: auto;
-  min-width: 70px;
+  min-width: 68px;
   height: 26px;
   border-color: transparent;
   background: transparent;
@@ -165,6 +165,73 @@ textarea:focus {
   gap: 6px;
 }
 
+.quick-ribbon {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(72, 221, 255, 0.08), rgba(72, 221, 255, 0.01)),
+    #090d13;
+}
+
+.round-shortcut {
+  display: grid;
+  grid-template-rows: 38px 14px;
+  justify-items: center;
+  align-items: center;
+  gap: 3px;
+  width: 64px;
+  min-width: 64px;
+  height: 56px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.round-shortcut:hover,
+.round-shortcut.active {
+  color: var(--text);
+}
+
+.round-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(72, 221, 255, 0.28);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(30, 42, 55, 0.92), rgba(9, 13, 19, 0.92));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 22px rgba(0, 0, 0, 0.32);
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.round-shortcut:hover .round-icon,
+.round-shortcut.active .round-icon {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 2px rgba(72, 221, 255, 0.12),
+    0 12px 28px rgba(0, 0, 0, 0.4);
+}
+
+.round-shortcut.accent .round-icon {
+  border-color: rgba(84, 242, 180, 0.62);
+  background:
+    radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.22), transparent 34%),
+    linear-gradient(180deg, #1183a0, #0b4659);
+  color: white;
+}
+
 .main-toolbar {
   display: flex;
   align-items: center;
@@ -175,12 +242,29 @@ textarea:focus {
 }
 
 .tool-button {
-  display: inline-grid;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   place-items: center;
   width: 30px;
   min-width: 30px;
-  padding: 0;
+  padding: 0 7px;
   font-weight: 700;
+}
+
+.tool-button.labeled {
+  width: auto;
+  min-width: 68px;
+  font-size: 12px;
+}
+
+.button-icon {
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  color: var(--accent);
+  font-weight: 800;
 }
 
 .tool-button.wide {
@@ -217,17 +301,27 @@ textarea:focus {
 
 .workspace {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 330px;
+  grid-template-columns: 62px minmax(0, 1fr) 330px;
   min-height: 0;
 }
 
 .left-tools {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding: 8px 5px;
+  gap: 6px;
+  padding: 8px 6px;
   border-right: 1px solid var(--line);
   background: #0a0e14;
+}
+
+.side-labeled {
+  flex-direction: column;
+  gap: 2px;
+  width: 49px;
+  min-width: 49px;
+  height: 42px;
+  padding: 3px 2px;
+  font-size: 10px;
 }
 
 .viewport-column {
@@ -702,7 +796,7 @@ dialog p {
 
 @media (max-width: 960px) {
   .app-shell {
-    grid-template-rows: 42px 38px minmax(0, 1fr) 172px 24px;
+    grid-template-rows: 42px 68px 40px minmax(0, 1fr) 172px 24px;
   }
 
   .topbar {
@@ -714,16 +808,26 @@ dialog p {
   }
 
   .workspace {
-    grid-template-columns: 38px minmax(0, 1fr);
+    grid-template-columns: 54px minmax(0, 1fr);
   }
 
   .command-panel {
     position: absolute;
     right: 0;
-    top: 80px;
-    bottom: 180px;
+    top: 150px;
+    bottom: 196px;
     width: min(330px, 86vw);
     z-index: 6;
+  }
+
+  .quick-ribbon {
+    gap: 8px;
+    padding: 6px 10px;
+  }
+
+  .round-shortcut {
+    width: 56px;
+    min-width: 56px;
   }
 
   .prompt-dock {

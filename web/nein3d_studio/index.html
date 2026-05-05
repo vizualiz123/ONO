@@ -21,27 +21,69 @@
         <button data-menu="edit">Правка</button>
         <button data-menu="create">Создать</button>
         <button data-menu="motion">Анимация</button>
+        <button data-menu="usd">USD</button>
         <button data-menu="render">Рендер</button>
         <button data-menu="export">Экспорт</button>
       </nav>
       <div class="top-actions">
-        <button id="saveProjectTop" class="tool-button" title="Сохранить проект">S</button>
-        <button id="openEngine" class="tool-button wide" title="Открыть текущий движок">Engine</button>
+        <button id="saveProjectTop" class="tool-button labeled" title="Сохранить проект"><span class="button-icon">S</span><span>Save</span></button>
+        <button id="openEngine" class="tool-button labeled wide" title="Открыть текущий движок"><span class="button-icon">↗</span><span>Engine</span></button>
       </div>
     </header>
 
+    <section class="quick-ribbon" aria-label="Быстрая шапка">
+      <button class="round-shortcut active" data-top-tool="select" title="Select">
+        <span class="round-icon">↖</span>
+        <span>Select</span>
+      </button>
+      <button class="round-shortcut" data-top-tool="move" title="Move">
+        <span class="round-icon">↕</span>
+        <span>Move</span>
+      </button>
+      <button class="round-shortcut" data-top-tool="rotate" title="Rotate">
+        <span class="round-icon">⟳</span>
+        <span>Rotate</span>
+      </button>
+      <button class="round-shortcut" data-top-tool="scale" title="Scale">
+        <span class="round-icon">□</span>
+        <span>Scale</span>
+      </button>
+      <button class="round-shortcut" data-top-action="usd" title="USD Assets">
+        <span class="round-icon">▣</span>
+        <span>USD</span>
+      </button>
+      <button class="round-shortcut accent" data-top-action="generate" title="Generate">
+        <span class="round-icon">▶</span>
+        <span>Generate</span>
+      </button>
+      <button class="round-shortcut" data-top-action="play" title="Play">
+        <span class="round-icon">▸</span>
+        <span>Play</span>
+      </button>
+      <button class="round-shortcut" data-top-action="save" title="Save Project">
+        <span class="round-icon">S</span>
+        <span>Save</span>
+      </button>
+      <button class="round-shortcut" data-top-action="engine" title="Engine">
+        <span class="round-icon">↗</span>
+        <span>Engine</span>
+      </button>
+    </section>
+
     <section class="main-toolbar" aria-label="Инструменты">
-      <button class="tool-button active" data-tool="select" title="Select">↖</button>
-      <button class="tool-button" data-tool="move" title="Move">↕</button>
-      <button class="tool-button" data-tool="rotate" title="Rotate">⟳</button>
-      <button class="tool-button" data-tool="scale" title="Scale">□</button>
+      <button class="tool-button labeled active" data-tool="select" title="Select"><span class="button-icon">↖</span><span>Select</span></button>
+      <button class="tool-button labeled" data-tool="move" title="Move"><span class="button-icon">↕</span><span>Move</span></button>
+      <button class="tool-button labeled" data-tool="rotate" title="Rotate"><span class="button-icon">⟳</span><span>Rotate</span></button>
+      <button class="tool-button labeled" data-tool="scale" title="Scale"><span class="button-icon">□</span><span>Scale</span></button>
       <span class="toolbar-separator"></span>
-      <button class="tool-button" id="undoAction" title="Undo">↶</button>
-      <button class="tool-button" id="redoAction" title="Redo">↷</button>
+      <button class="tool-button labeled" id="undoAction" title="Undo"><span class="button-icon">↶</span><span>Undo</span></button>
+      <button class="tool-button labeled" id="redoAction" title="Redo"><span class="button-icon">↷</span><span>Redo</span></button>
       <span class="toolbar-separator"></span>
-      <button class="tool-button accent" id="generateMotion" title="Generate">▶</button>
-      <button class="tool-button" id="playTimeline" title="Play / Pause">▸</button>
-      <button class="tool-button" id="stopTimeline" title="Stop">■</button>
+      <button class="tool-button labeled accent" id="generateMotion" title="Generate"><span class="button-icon">▶</span><span>Generate</span></button>
+      <button class="tool-button labeled" id="playTimeline" title="Play / Pause"><span class="button-icon">▸</span><span>Play</span></button>
+      <button class="tool-button labeled" id="stopTimeline" title="Stop"><span class="button-icon">■</span><span>Stop</span></button>
+      <span class="toolbar-separator"></span>
+      <button class="tool-button labeled" data-toolbar-action="usd" title="USD Assets"><span class="button-icon">▣</span><span>USD</span></button>
       <span class="toolbar-separator"></span>
       <label class="compact-field">
         <span>FPS</span>
@@ -55,11 +97,11 @@
 
     <main class="workspace">
       <aside class="left-tools" aria-label="Быстрые инструменты">
-        <button class="tool-button active" data-left-tool="rig" title="Rig">◎</button>
-        <button class="tool-button" data-left-tool="path" title="Path">⌁</button>
-        <button class="tool-button" data-left-tool="pose" title="Pose">◇</button>
-        <button class="tool-button" data-left-tool="usd" title="USD">▣</button>
-        <button class="tool-button" data-left-tool="camera" title="Camera">▱</button>
+        <button class="tool-button side-labeled active" data-left-tool="rig" title="Rig"><span class="button-icon">◎</span><span>Rig</span></button>
+        <button class="tool-button side-labeled" data-left-tool="path" title="Path"><span class="button-icon">⌁</span><span>Path</span></button>
+        <button class="tool-button side-labeled" data-left-tool="pose" title="Pose"><span class="button-icon">◇</span><span>Pose</span></button>
+        <button class="tool-button side-labeled" data-left-tool="usd" title="USD"><span class="button-icon">▣</span><span>USD</span></button>
+        <button class="tool-button side-labeled" data-left-tool="camera" title="Camera"><span class="button-icon">▱</span><span>Cam</span></button>
       </aside>
 
       <section class="viewport-column">
@@ -144,7 +186,7 @@
           </div>
         </section>
 
-        <section class="panel-section">
+        <section class="panel-section" id="usdPanel">
           <h2>USD / Assets</h2>
           <label class="field">
             <span>USD Path</span>
