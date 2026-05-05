@@ -268,6 +268,7 @@ def main() -> int:
                 process=web,
             )
 
+        # Default users into the new web DCC shell; keep the legacy UI available as backend/admin.
         engine_url = f"http://{args.host}:{args.ui_port}"
         web_url = f"http://{args.host}:{args.web_port}/?engine={engine_url}"
         url = engine_url if args.legacy_ui else web_url

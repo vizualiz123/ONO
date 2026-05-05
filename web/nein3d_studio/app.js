@@ -1,3 +1,4 @@
+// The web UI is the new product shell; the old Kimodo/Viser app is still the engine backend.
 const ENGINE_URL = new URLSearchParams(window.location.search).get("engine") || "http://127.0.0.1:7860";
 
 const state = {
@@ -507,6 +508,7 @@ function bindEvents() {
   $("addPromptBlock").addEventListener("click", addPromptBlock);
   $("generateMotion").addEventListener("click", () => {
     applyPromptToTrack();
+    // TODO: replace this placeholder with a backend call once /api/generate exists.
     showMessage("Generate готов к подключению", "Prompt редактируется в web UI. Следующий шаг - связать эту кнопку с backend генерацией напрямую.");
   });
   $("playTimeline").addEventListener("click", () => togglePlayback());
