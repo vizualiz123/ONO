@@ -1,0 +1,53 @@
+#usda 1.0
+(
+    subLayers = [
+        @../Avatar/Looks/Face_Futuristic_v2.usda@
+    ]
+)
+
+over "World"
+{
+    over "charTransfer" (
+        active = false
+    )
+    {
+    }
+
+    over "light" (
+        active = false
+    )
+    {
+    }
+
+    over "transfer_data" (
+        active = false
+    )
+    {
+    }
+
+    over "Debra"
+    {
+        over "ManRoot"
+        {
+            over "Debra_gamebase_A2F"
+            {
+                over "Debra_gamebase_A2F"
+                {
+                    over "CC_Game_Body"
+                    {
+                        over "CC_Game_Body"
+                        {
+                            rel material:binding = </Avatar/Looks/Avatar_Face_v2>
+                        }
+
+                        over "CC_Game_Body_fitted" (
+                            active = false
+                        )
+                        {
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,593 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <RestoreSuccess Condition=" '$(RestoreSuccess)' == '' ">True</RestoreSuccess>
+    <RestoreTool Condition=" '$(RestoreTool)' == '' ">NuGet</RestoreTool>
+    <ProjectAssetsFile Condition=" '$(ProjectAssetsFile)' == '' ">$(MSBuildThisFileDirectory)project.assets.json</ProjectAssetsFile>
+    <NuGetPackageRoot Condition=" '$(NuGetPackageRoot)' == '' ">$(UserProfile)\.nuget\packages\</NuGetPackageRoot>
+    <NuGetPackageFolders Condition=" '$(NuGetPackageFolders)' == '' ">C:\Users\Human\.nuget\packages\</NuGetPackageFolders>
+    <NuGetProjectStyle Condition=" '$(NuGetProjectStyle)' == '' ">PackageReference</NuGetProjectStyle>
+    <NuGetToolVersion Condition=" '$(NuGetToolVersion)' == '' ">6.11.1</NuGetToolVersion>
+  </PropertyGroup>
+  <ItemGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <SourceRoot Include="C:\Users\Human\.nuget\packages\" />
+  </ItemGroup>
+  <ItemGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\Alembic.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\Alembic.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\Alembic.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\Imath.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\Imath.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\Imath.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\UsdCs.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\UsdCs.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\UsdCs.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\tbb.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\tbb.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\tbb.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usdAbc.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usdAbc.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usdAbc.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_ar.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_ar.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_ar.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_arch.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_arch.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_arch.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_gf.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_gf.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_gf.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_js.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_js.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_js.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_kind.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_kind.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_kind.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_ndr.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_ndr.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_ndr.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_pcp.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_pcp.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_pcp.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_plug.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_plug.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_plug.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_sdf.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_sdf.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_sdf.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_sdr.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_sdr.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_sdr.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_tf.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_tf.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_tf.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_trace.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_trace.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_trace.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_usd.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_usd.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_usd.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_usdgeom.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_usdgeom.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_usdgeom.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_usdlux.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_usdlux.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_usdlux.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_usdri.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_usdri.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_usdri.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_usdshade.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_usdshade.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_usdshade.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_usdskel.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_usdskel.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_usdskel.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_usdutils.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_usdutils.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_usdutils.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_usdvol.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_usdvol.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_usdvol.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_vt.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_vt.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_vt.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_work.dll" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\DLLs\usd_work.dll')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>DLLs\usd_work.dll</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\ar\resources\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\ar\resources\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\ar\resources\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\ndr\resources\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\ndr\resources\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\ndr\resources\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\sdf\resources\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\sdf\resources\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\sdf\resources\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usd\resources\generatedSchema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usd\resources\generatedSchema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usd\resources\generatedSchema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usd\resources\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usd\resources\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usd\resources\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usd\resources\usd\schema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usd\resources\usd\schema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usd\resources\usd\schema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdGeom\resources\generatedSchema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdGeom\resources\generatedSchema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdGeom\resources\generatedSchema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdGeom\resources\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdGeom\resources\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdGeom\resources\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdGeom\resources\usdGeom\schema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdGeom\resources\usdGeom\schema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdGeom\resources\usdGeom\schema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdHydra\resources\generatedSchema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdHydra\resources\generatedSchema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdHydra\resources\generatedSchema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdHydra\resources\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdHydra\resources\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdHydra\resources\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdHydra\resources\shaders\empty.glslfx" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdHydra\resources\shaders\empty.glslfx')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdHydra\resources\shaders\empty.glslfx</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdHydra\resources\shaders\shaderDefs.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdHydra\resources\shaders\shaderDefs.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdHydra\resources\shaders\shaderDefs.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdHydra\resources\usdHydra\schema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdHydra\resources\usdHydra\schema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdHydra\resources\usdHydra\schema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdLux\resources\generatedSchema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdLux\resources\generatedSchema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdLux\resources\generatedSchema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdLux\resources\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdLux\resources\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdLux\resources\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdLux\resources\usdLux\schema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdLux\resources\usdLux\schema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdLux\resources\usdLux\schema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdMedia\resources\generatedSchema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdMedia\resources\generatedSchema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdMedia\resources\generatedSchema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdMedia\resources\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdMedia\resources\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdMedia\resources\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdMedia\resources\usdMedia\schema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdMedia\resources\usdMedia\schema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdMedia\resources\usdMedia\schema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdPhysics\resources\generatedSchema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdPhysics\resources\generatedSchema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdPhysics\resources\generatedSchema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdPhysics\resources\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdPhysics\resources\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdPhysics\resources\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdPhysics\resources\usdPhysics\schema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdPhysics\resources\usdPhysics\schema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdPhysics\resources\usdPhysics\schema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdProc\resources\generatedSchema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdProc\resources\generatedSchema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdProc\resources\generatedSchema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdProc\resources\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdProc\resources\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdProc\resources\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdProc\resources\usdProc\schema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdProc\resources\usdProc\schema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdProc\resources\usdProc\schema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdRender\resources\generatedSchema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdRender\resources\generatedSchema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdRender\resources\generatedSchema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdRender\resources\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdRender\resources\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdRender\resources\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdRender\resources\usdRender\schema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdRender\resources\usdRender\schema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdRender\resources\usdRender\schema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdRi\resources\generatedSchema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdRi\resources\generatedSchema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdRi\resources\generatedSchema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdRi\resources\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdRi\resources\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdRi\resources\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdRi\resources\usdRi\schema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdRi\resources\usdRi\schema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdRi\resources\usdRi\schema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdShade\resources\generatedSchema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdShade\resources\generatedSchema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdShade\resources\generatedSchema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdShade\resources\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdShade\resources\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdShade\resources\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdShade\resources\usdShade\schema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdShade\resources\usdShade\schema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdShade\resources\usdShade\schema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdSkel\resources\generatedSchema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdSkel\resources\generatedSchema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdSkel\resources\generatedSchema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdSkel\resources\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdSkel\resources\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdSkel\resources\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdSkel\resources\usdSkel\schema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdSkel\resources\usdSkel\schema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdSkel\resources\usdSkel\schema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdUI\resources\generatedSchema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdUI\resources\generatedSchema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdUI\resources\generatedSchema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdUI\resources\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdUI\resources\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdUI\resources\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdUI\resources\usdUI\schema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdUI\resources\usdUI\schema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdUI\resources\usdUI\schema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdVol\resources\generatedSchema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdVol\resources\generatedSchema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdVol\resources\generatedSchema.usda</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdVol\resources\plugInfo.json" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdVol\resources\plugInfo.json')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdVol\resources\plugInfo.json</Link>
+    </Content>
+    <Content Include="$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdVol\resources\usdVol\schema.usda" Condition="Exists('$(NuGetPackageRoot)universalscenedescription\5.0.6\contentFiles\any\net8.0\USD\usdVol\resources\usdVol\schema.usda')">
+      <NuGetPackageId>UniversalSceneDescription</NuGetPackageId>
+      <NuGetPackageVersion>5.0.6</NuGetPackageVersion>
+      <NuGetItemType>Content</NuGetItemType>
+      <Pack>false</Pack>
+      <Private>False</Private>
+      <Link>USD\usdVol\resources\usdVol\schema.usda</Link>
+    </Content>
+  </ItemGroup>
+</Project>
