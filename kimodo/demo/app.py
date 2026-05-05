@@ -281,17 +281,20 @@ class Demo:
         }
 
     def set_timeline_defaults(self, timeline, model_fps: float) -> None:
+        default_frame_count = max(1, int(round(DEFAULT_CUR_DURATION * model_fps)))
         timeline.set_defaults(
             default_text=DEFAULT_PROMPT,
-            default_duration=int(DEFAULT_CUR_DURATION * model_fps - 1),
+            default_duration=default_frame_count - 1,
             min_duration=int(MIN_DURATION * model_fps - 1),  # 2 seconds minimum,
             max_duration=int(
                 MAX_DURATION * model_fps - 1  # - NB_TRANSITION_FRAMES
             ),  # 10 seconds maximum, minus the transition frames, if needed
-            default_num_frames_zoom=int(1.10 * 10 * model_fps),  # a bit more than the max
-            max_frames_zoom=1000,
+            default_num_frames_zoom=default_frame_count,
+            max_frames_zoom=default_frame_count,
             fps=model_fps,
         )
+        timeline._end_frame = default_frame_count - 1
+        timeline._send_timeline_update()
 
     def _apply_constraint_overlay_visibility(self, session: ClientSession) -> None:
         """Apply show-all vs show-only-current-frame to constraint overlays."""
@@ -431,7 +434,7 @@ class Demo:
 
         # Initialize session state
         cur_duration = DEFAULT_CUR_DURATION
-        max_frame_idx = int(cur_duration * model_bundle.model_fps - 1)
+        max_frame_idx = max(0, int(round(cur_duration * model_bundle.model_fps)) - 1)
 
         session = ClientSession(
             client=client,

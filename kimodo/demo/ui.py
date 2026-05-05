@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # ruff: noqa: I001
-import math
 import os
 import threading
 from typing import Optional
@@ -337,6 +336,41 @@ def create_gui(
                         cur += 1
                     num_frames.append(cur)
                 return num_frames
+
+            def duration_seconds_to_frame_counts(
+                durations_sec: list[float],
+                fps: float,
+                target_total_frames: Optional[int] = None,
+            ) -> list[int]:
+                if len(durations_sec) == 0:
+                    return []
+                if target_total_frames is None:
+                    return [max(1, int(round(duration * fps))) for duration in durations_sec]
+
+                target_total_frames = max(len(durations_sec), int(target_total_frames))
+                total_seconds = sum(max(0.0, float(duration)) for duration in durations_sec)
+                if total_seconds <= 0.0:
+                    counts = [1 for _ in durations_sec]
+                else:
+                    raw = np.asarray(durations_sec, dtype=np.float64) / total_seconds * target_total_frames
+                    counts = np.maximum(1, np.floor(raw).astype(np.int64)).tolist()
+                    fractions = raw - np.floor(raw)
+                    diff = target_total_frames - sum(counts)
+                    if diff > 0:
+                        order = np.argsort(-fractions)
+                        for idx in order[:diff]:
+                            counts[int(idx)] += 1
+                    elif diff < 0:
+                        order = np.argsort(fractions)
+                        remaining = -diff
+                        for idx in order:
+                            idx = int(idx)
+                            removable = min(remaining, counts[idx] - 1)
+                            counts[idx] -= removable
+                            remaining -= removable
+                            if remaining <= 0:
+                                break
+                return counts
 
             def update_duration_auto():
                 session = demo.client_sessions[client_id]
@@ -931,11 +965,7 @@ def create_gui(
 
                 # Update duration and frame range based on loaded motion
                 num_frames = joints_pos.shape[0]
-                duration = num_frames / session.model_fps
-
-                # Update GUI elements
-                session.cur_duration = duration
-                session.max_frame_idx = num_frames - 1
+                set_session_frame_count(session, num_frames)
 
                 # Clear existing motions and add the loaded one
                 demo.clear_motions(client.client_id)
@@ -1698,13 +1728,31 @@ def create_gui(
                     color="red",
                 )
 
+        def sync_timeline_range_to_session(session: ClientSession) -> None:
+            frame_count = max(1, session.max_frame_idx + 1)
+            timeline = session.client.timeline
+            timeline.set_zoom_settings(
+                default_num_frames_zoom=frame_count,
+                max_frames_zoom=frame_count,
+            )
+            # Viser exposes zoom settings publicly, but timeline range is currently internal.
+            # Keep it exactly aligned with the animation's last valid frame.
+            timeline._end_frame = session.max_frame_idx
+            timeline._send_timeline_update()
+
+        def set_session_frame_count(session: ClientSession, frame_count: int) -> None:
+            frame_count = max(1, int(frame_count))
+            session.cur_duration = frame_count / session.model_fps
+            session.max_frame_idx = frame_count - 1
+            update_duration_gui(session.cur_duration)
+            sync_timeline_range_to_session(session)
+            if session.frame_idx > session.max_frame_idx:
+                demo.set_frame(session.client.client_id, session.max_frame_idx)
+
         def set_new_duration(client_id, new_duration):
             session = demo.client_sessions[client_id]
-            session.cur_duration = new_duration
-            update_duration_gui(new_duration)
-            session.max_frame_idx = int(session.cur_duration * session.model_fps - 1)
-            if session.frame_idx > session.max_frame_idx:
-                demo.set_frame(client_id, session.max_frame_idx)
+            frame_count = max(1, int(round(new_duration * session.model_fps)))
+            set_session_frame_count(session, frame_count)
 
         def apply_model_selection(new_model_name: str) -> None:
             session = demo.client_sessions[client_id]
@@ -1742,11 +1790,12 @@ def create_gui(
             session.skeleton = model_bundle.skeleton
             session.motion_rep = model_bundle.motion_rep
             session.cur_duration = old_duration
-            session.max_frame_idx = int(session.cur_duration * session.model_fps - 1)
+            session.max_frame_idx = max(0, int(round(session.cur_duration * session.model_fps)) - 1)
             session.frame_idx = 0
             session.edit_mode = False
 
             demo.set_timeline_defaults(client.timeline, session.model_fps)
+            sync_timeline_range_to_session(session)
             client.timeline.set_current_frame(0)
             gui_model_fps.value = session.model_fps
             update_duration_gui(session.cur_duration)
@@ -2029,11 +2078,18 @@ def create_gui(
 
                     texts, durations_sec = parse_prompts_from_meta(meta_info)
                     fps = session.model_fps
-                    # Convert durations (seconds) to consecutive frame bounds
+                    target_num_frames = session.max_frame_idx + 1 if session.motions else None
+                    prompt_frame_counts = duration_seconds_to_frame_counts(
+                        durations_sec,
+                        fps,
+                        target_total_frames=target_num_frames,
+                    )
+
+                    # Convert durations to consecutive frame bounds. If a motion was
+                    # loaded, fit the prompts exactly to the motion frame count.
                     num_frames = 0
                     frame_bounds = []
-                    for i, d in enumerate(durations_sec):
-                        n_frames = max(1, int(round(d * fps)))
+                    for i, n_frames in enumerate(prompt_frame_counts):
                         start_frame = num_frames
                         # Inverse of compute_prompt_num_frames():
                         # non-last prompts end at next prompt start (exclusive),
@@ -2046,16 +2102,13 @@ def create_gui(
                         num_frames += n_frames
 
                     # Adapt timeline zoom to the loaded motion.
-                    target_visible_frames = int(math.ceil(1.10 * num_frames))
-                    event_client.timeline.set_zoom_settings(
-                        default_num_frames_zoom=target_visible_frames,
-                    )
+                    set_session_frame_count(session, num_frames)
 
                     for i, (prompt_text, (start_frame, end_frame)) in enumerate(zip(texts, frame_bounds)):
                         color = PROMPT_COLORS[i % len(PROMPT_COLORS)]
                         event_client.timeline.add_prompt(prompt_text, start_frame, end_frame, color=color)
 
-                    update_duration_auto()
+                    sync_timeline_range_to_session(session)
 
                     # Only load optional fields if present
                     if "num_samples" in meta_info:
@@ -2832,10 +2885,9 @@ def create_gui(
 
             # compute the total duration
             total_nb_frames = sum(num_frames)
-            total_duration = total_nb_frames / session.model_fps
 
             # update just in case
-            set_new_duration(client_id, total_duration)
+            set_session_frame_count(session, total_nb_frames)
 
             transitions_parameters = {
                 "num_transition_frames": gui_num_transition_frames_slider.value,
@@ -2863,8 +2915,11 @@ def create_gui(
                     transitions_parameters=transitions_parameters,
                     real_robot_rotations=gui_real_robot_rotations_checkbox.value,
                 )
-                session.max_frame_idx = int(session.cur_duration * session.model_fps - 1)
-                session.max_frame_idx = int(session.cur_duration * session.model_fps) - 1
+                actual_frame_count = max(
+                    [motion.length for motion in session.motions.values()],
+                    default=total_nb_frames,
+                )
+                set_session_frame_count(session, actual_frame_count)
                 if session.frame_idx > session.max_frame_idx:
                     session.frame_idx = session.max_frame_idx
 
