@@ -23,7 +23,7 @@ from kimodo.model.registry import (
 SERVER_NAME = os.environ.get("SERVER_NAME", "0.0.0.0")
 SERVER_PORT = int(os.environ.get("SERVER_PORT", "7860"))
 HF_MODE = os.environ.get("HF_MODE", False)
-APP_TITLE = os.environ.get("KIMODO_APP_TITLE", "Motion Studio")
+APP_TITLE = os.environ.get("KIMODO_APP_TITLE", "Nein3D")
 APP_PANEL_LABEL = os.environ.get("KIMODO_PANEL_LABEL", APP_TITLE)
 DEFAULT_DARK_MODE = os.environ.get("KIMODO_DARK_MODE", "true").lower() not in (
     "0",

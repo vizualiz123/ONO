@@ -159,8 +159,10 @@ onelogger.err
 # Local demo/runtime artifacts
 .kimodo_*.logs
 .kimodo_*.pid
+.nein3d_*.pid
 .tmp/
 .tools/
+/release/windows/*.exe
 
 # deploy files
 /helm-library
