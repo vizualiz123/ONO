@@ -1,5 +1,7 @@
 // The web UI is the new product shell; the old Kimodo/Viser app is still the engine backend.
-const ENGINE_URL = new URLSearchParams(window.location.search).get("engine") || "http://127.0.0.1:7860";
+const params = new URLSearchParams(window.location.search);
+const ENGINE_URL = params.get("engine") || "http://127.0.0.1:7860";
+const START_MODE = params.get("mode") || "dcc";
 
 const state = {
   tool: "select",
@@ -29,6 +31,8 @@ function $(id) {
 function bindElements() {
   [
     "viewportCanvas",
+    "viewport",
+    "engineFrame",
     "promptInput",
     "modelSelect",
     "seedInput",
@@ -52,6 +56,8 @@ function bindElements() {
     "messageDialog",
     "dialogTitle",
     "dialogBody",
+    "dccViewportMode",
+    "engineViewportMode",
   ].forEach((id) => {
     els[id] = $(id);
   });
@@ -120,6 +126,29 @@ function activatePanel(panelName) {
 function focusUsdPanel() {
   activatePanel("assets");
   $("usdPanel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function showDccViewport() {
+  els.viewport.classList.remove("engine-live");
+  els.dccViewportMode.classList.add("active");
+  els.engineViewportMode.classList.remove("active");
+  els.viewportStatus.textContent = "Prompt editable · local project";
+  resizeCanvas();
+}
+
+function showEngineViewport() {
+  if (!els.engineFrame.src) {
+    els.engineFrame.src = ENGINE_URL;
+  }
+  els.viewport.classList.add("engine-live");
+  els.dccViewportMode.classList.remove("active");
+  els.engineViewportMode.classList.add("active");
+  els.viewportStatus.textContent = "Live backend engine · old tools enabled";
+}
+
+function useWorkingEngine() {
+  showEngineViewport();
+  els.engineFrame.focus();
 }
 
 function renderObjects() {
@@ -535,7 +564,7 @@ function bindEvents() {
       } else if (action === "save") {
         saveProject();
       } else if (action === "engine") {
-        window.open(ENGINE_URL, "_blank", "noopener");
+        useWorkingEngine();
       }
     });
   });
@@ -543,6 +572,7 @@ function bindEvents() {
     button.addEventListener("click", () => {
       if (button.dataset.menu === "usd") {
         focusUsdPanel();
+        useWorkingEngine();
       }
     });
   });
@@ -552,6 +582,7 @@ function bindEvents() {
       button.classList.add("active");
       if (button.dataset.leftTool === "usd") {
         focusUsdPanel();
+        useWorkingEngine();
       }
     });
   });
@@ -570,8 +601,8 @@ function bindEvents() {
   $("addPromptBlock").addEventListener("click", addPromptBlock);
   $("generateMotion").addEventListener("click", () => {
     applyPromptToTrack();
-    // TODO: replace this placeholder with a backend call once /api/generate exists.
-    showMessage("Generate готов к подключению", "Prompt редактируется в web UI. Следующий шаг - связать эту кнопку с backend генерацией напрямую.");
+    useWorkingEngine();
+    showMessage("Открыт рабочий Engine", "Генерация, старый таймлайн и старые контролы доступны внутри Live Engine, как раньше. Новый prompt-dock пока сохранен как web-слой.");
   });
   $("playTimeline").addEventListener("click", () => togglePlayback());
   $("playTimelineBottom").addEventListener("click", () => togglePlayback());
@@ -585,16 +616,27 @@ function bindEvents() {
   els.fpsInput.addEventListener("change", updateFrameSettings);
   els.frameCountInput.addEventListener("change", updateFrameSettings);
   $("saveProjectTop").addEventListener("click", saveProject);
-  $("openEngine").addEventListener("click", () => window.open(ENGINE_URL, "_blank", "noopener"));
+  $("openEngine").addEventListener("click", useWorkingEngine);
   $("undoAction").addEventListener("click", () => showMessage("Undo", "История действий будет подключена на следующем backend-этапе."));
   $("redoAction").addEventListener("click", () => showMessage("Redo", "История действий будет подключена на следующем backend-этапе."));
   document.querySelectorAll('[data-toolbar-action="usd"]').forEach((button) => {
-    button.addEventListener("click", focusUsdPanel);
+    button.addEventListener("click", () => {
+      focusUsdPanel();
+      useWorkingEngine();
+    });
   });
   $("addRig").addEventListener("click", addRig);
   $("clearScene").addEventListener("click", clearScene);
-  $("loadUsd").addEventListener("click", loadUsd);
-  $("clearUsd").addEventListener("click", clearUsd);
+  $("loadUsd").addEventListener("click", () => {
+    loadUsd();
+    useWorkingEngine();
+  });
+  $("clearUsd").addEventListener("click", () => {
+    clearUsd();
+    useWorkingEngine();
+  });
+  els.dccViewportMode.addEventListener("click", showDccViewport);
+  els.engineViewportMode.addEventListener("click", showEngineViewport);
   window.addEventListener("resize", resizeCanvas);
   window.addEventListener("keydown", (event) => {
     if (event.code === "Space" && document.activeElement !== els.promptInput) {
@@ -626,6 +668,9 @@ function boot() {
   updateFrameSettings();
   setTool("select");
   resizeCanvas();
+  if (START_MODE === "engine") {
+    showEngineViewport();
+  }
   checkEngine();
   setInterval(checkEngine, 12000);
 }

@@ -23,6 +23,7 @@ This repository currently still contains the original Kimodo codebase underneath
 - The new web DCC interface opens separately on port `7870`.
 - The prompt is editable in a bottom transparent glass dock over the viewport.
 - The web UI has a 3D-editor layout: top menu, toolbar, left tool strip, viewport, right command panel, bottom timeline.
+- The web UI can embed the old backend in `Live Engine` mode so the original generation/timeline/USD tools keep working.
 - The web UI can save a local `.nein3d.json` project snapshot.
 - The app uses a black/cyan style by default.
 - The backend uses aggressive GPU cleanup and keeps the text encoder on CPU where possible.
@@ -47,7 +48,7 @@ Nein3D.exe
   └─ starts Nein3D web UI on 7870
 
 Browser
-  └─ opens http://127.0.0.1:7870/?engine=http://127.0.0.1:7860
+  └─ opens http://127.0.0.1:7870/?engine=http://127.0.0.1:7860&mode=engine
 ```
 
 The new web UI should become the real product interface. The old Viser UI should be treated as the engine/admin backend until its useful functions are exposed through an API.
@@ -123,6 +124,12 @@ Open the new web UI manually:
 
 ```text
 http://127.0.0.1:7870/?engine=http://127.0.0.1:7860
+```
+
+Open the new shell with the old working backend embedded by default:
+
+```text
+http://127.0.0.1:7870/?engine=http://127.0.0.1:7860&mode=engine
 ```
 
 Open the old backend UI manually:

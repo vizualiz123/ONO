@@ -341,7 +341,7 @@ textarea:focus {
 }
 
 .viewport-tabs button {
-  width: 92px;
+  width: 96px;
   height: 22px;
   font-size: 12px;
 }
@@ -366,6 +366,36 @@ textarea:focus {
   width: 100%;
   height: 100%;
   display: block;
+}
+
+.engine-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #05070a;
+  display: none;
+}
+
+.viewport.engine-live #viewportCanvas,
+.viewport.engine-live .prompt-dock,
+.viewport.engine-live .transform-gizmo {
+  display: none;
+}
+
+.viewport.engine-live .engine-frame {
+  display: block;
+}
+
+.viewport.engine-live .top-left {
+  z-index: 5;
+  opacity: 0.72;
+}
+
+.viewport.engine-live .bottom-right {
+  display: none;
 }
 
 .viewport-overlay {
