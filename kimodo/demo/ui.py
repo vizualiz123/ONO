@@ -27,6 +27,7 @@ from viser._timeline_api import PROMPT_COLORS
 from . import generation
 from .config import (
     DEFAULT_CUR_DURATION,
+    DEFAULT_DARK_MODE,
     DEMO_UI_INSTRUCTIONS_TAB_MD,
     get_datasets,
     get_model_info,
@@ -3207,7 +3208,7 @@ def create_gui(
             )
             gui_dark_mode_checkbox = client.gui.add_checkbox(
                 "Темная тема",
-                initial_value=False,  # Default to light mode
+                initial_value=DEFAULT_DARK_MODE,
             )
             gui_show_constraint_tracks_checkbox.visible = gui_show_timeline_checkbox.value
             demo.set_start_direction_visible(client_id, gui_show_starting_direction_checkbox.value)

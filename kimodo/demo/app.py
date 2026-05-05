@@ -39,6 +39,7 @@ from .config import (
     APP_TITLE,
     DARK_THEME,
     DEFAULT_CUR_DURATION,
+    DEFAULT_DARK_MODE,
     DEFAULT_MODEL,
     DEFAULT_PLAYBACK_SPEED,
     DEFAULT_PROMPT,
@@ -54,6 +55,7 @@ from .config import (
     MODEL_NAMES,
     SERVER_NAME,
     SERVER_PORT,
+    STUDIO_BRAND_COLOR,
 )
 from .embedding_cache import CachedTextEncoder
 from .queue_manager import QueueManager, UserQueue
@@ -484,7 +486,7 @@ class Demo:
             self._setup_demo_for_client(client)
 
     def setup_scene(self, client: viser.ClientHandle) -> None:
-        self.configure_theme(client)
+        self.configure_theme(client, dark_mode=DEFAULT_DARK_MODE)
         client.camera.position = np.array(
             [2.7417358737841426, 1.8790455698853281, 7.675741569777456],
             dtype=np.float64,
@@ -502,7 +504,7 @@ class Demo:
             wxyz=viser.transforms.SO3.from_x_radians(-np.pi / 2.0).wxyz,
             position=(0.0, 0.0001, 0.0),
             fade_distance=3 * self.floor_len,
-            section_color=LIGHT_THEME["grid"],
+            section_color=(DARK_THEME if DEFAULT_DARK_MODE else LIGHT_THEME)["grid"],
             infinite_grid=True,
         )
         self.grid_handles[client.client_id] = grid_handle
@@ -754,7 +756,7 @@ class Demo:
     def configure_theme(
         self,
         client: viser.ClientHandle,
-        dark_mode: bool = False,
+        dark_mode: bool = DEFAULT_DARK_MODE,
         titlebar_dark_mode_checkbox_uuid: str | None = None,
     ):
         # Sync grid color with theme (light vs dark)
@@ -773,5 +775,5 @@ class Demo:
             show_logo=False,  # hide viser logo on bottom left corner
             show_share_button=False,
             titlebar_dark_mode_checkbox_uuid=titlebar_dark_mode_checkbox_uuid,
-            brand_color=(152, 189, 255),  # (60, 131, 0),  # (R, G, B) tuple
+            brand_color=STUDIO_BRAND_COLOR,
         )

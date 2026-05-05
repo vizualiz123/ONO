@@ -323,7 +323,7 @@ LIGHT_THEME = dict(
 )
 
 DARK_THEME = dict(
-    mesh=(100, 135, 195),
+    mesh=(72, 221, 255),
 )
 
 SKIN_CACHE = {}

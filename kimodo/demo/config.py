@@ -25,6 +25,13 @@ SERVER_PORT = int(os.environ.get("SERVER_PORT", "7860"))
 HF_MODE = os.environ.get("HF_MODE", False)
 APP_TITLE = os.environ.get("KIMODO_APP_TITLE", "Motion Studio")
 APP_PANEL_LABEL = os.environ.get("KIMODO_PANEL_LABEL", APP_TITLE)
+DEFAULT_DARK_MODE = os.environ.get("KIMODO_DARK_MODE", "true").lower() not in (
+    "0",
+    "false",
+    "no",
+    "off",
+)
+STUDIO_BRAND_COLOR = (72, 221, 255)
 
 # HF mode: user queue and session limit (override via env in Spaces)
 MAX_ACTIVE_USERS = int(os.environ.get("MAX_ACTIVE_USERS", "5"))
@@ -46,10 +53,9 @@ LIGHT_THEME = dict(
     grid=(180, 180, 180),
 )
 
-# Dark theme: slightly lighter grid and floor for better visibility and less flat black
 DARK_THEME = dict(
-    floor=(48, 48, 52),
-    grid=(105, 105, 110),
+    floor=(6, 7, 10),
+    grid=(54, 62, 74),
 )
 
 EXAMPLES_ROOT_DIR = str(DEMO_EXAMPLES_ROOT)
