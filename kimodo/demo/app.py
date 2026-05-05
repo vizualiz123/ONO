@@ -70,9 +70,22 @@ def _env_flag(name: str, default: bool = True) -> bool:
     return value.strip().lower() not in {"0", "false", "no", "off"}
 
 
-def _select_device() -> "torch.device | str":
+def _directml_device_string() -> str | None:
+    try:
+        import torch_directml  # type: ignore
+
+        if not torch_directml.is_available():
+            return None
+        # torch_directml exposes "privateuseone:N" as the device string.
+        return str(torch_directml.device())
+    except Exception:
+        return None
+
+
+def _select_device() -> str:
     """Pick the best available accelerator across NVIDIA/AMD/Intel/Apple.
 
+    Returns a torch device string (consumed by OmegaConf and torch alike).
     Honors KIMODO_GPU_BACKEND={cuda,directml,xpu,mps,cpu}. When unset or 'auto',
     probes CUDA first, then DirectML (AMD/Intel on Windows), then Intel XPU,
     then Apple MPS, falling back to CPU.
@@ -81,37 +94,29 @@ def _select_device() -> "torch.device | str":
 
     if backend in {"", "auto"}:
         if torch.cuda.is_available() and torch.cuda.device_count() > 0:
-            return torch.device("cuda:0")
-        try:
-            import torch_directml  # type: ignore
-
-            if torch_directml.is_available():
-                return torch_directml.device()
-        except Exception:
-            pass
+            return "cuda:0"
+        dml = _directml_device_string()
+        if dml is not None:
+            return dml
         if hasattr(torch, "xpu") and torch.xpu.is_available():
-            return torch.device("xpu:0")
+            return "xpu:0"
         mps = getattr(torch.backends, "mps", None)
         if mps is not None and mps.is_available():
-            return torch.device("mps")
-        return torch.device("cpu")
+            return "mps"
+        return "cpu"
 
     if backend == "cuda" and torch.cuda.is_available():
-        return torch.device("cuda:0")
+        return "cuda:0"
     if backend == "directml":
-        try:
-            import torch_directml  # type: ignore
-
-            if torch_directml.is_available():
-                return torch_directml.device()
-        except Exception:
-            pass
+        dml = _directml_device_string()
+        if dml is not None:
+            return dml
     if backend == "xpu" and hasattr(torch, "xpu") and torch.xpu.is_available():
-        return torch.device("xpu:0")
+        return "xpu:0"
     mps = getattr(torch.backends, "mps", None)
     if backend == "mps" and mps is not None and mps.is_available():
-        return torch.device("mps")
-    return torch.device("cpu")
+        return "mps"
+    return "cpu"
 
 
 class Demo:
