@@ -1,16 +1,15 @@
 # Nein3D
 
-Nein3D is being built as a web-based DCC motion studio: the long-term target is a browser UI in the spirit of 3ds Max, with AI motion generation, editable prompts, timeline control, USD assets, and production export tools.
+Nein3D is a Windows-first AI motion studio built on top of Kimodo: prompt-driven motion generation, a viewport, a timeline, and USD asset support, packaged behind a single `Nein3D.exe` launcher.
 
 This repository currently still contains the original Kimodo codebase underneath. The new product layer is being added on top and should gradually replace the old demo UI.
 
 ## Current State
 
 - Main development branch: `dev`.
+- Windows-only build branch: `windows-multi-gpu`.
 - Local repository remote: `nein3d/dev`.
 - Windows launcher: `release/windows/Nein3D.exe`.
-- New web UI: `web/nein3d_studio`.
-- Web UI port: `http://127.0.0.1:7870`.
 - Backend engine port: `http://127.0.0.1:7860`.
 - Text encoder server port: `http://127.0.0.1:9550`.
 - Default app name: `Nein3D`.
@@ -19,39 +18,42 @@ This repository currently still contains the original Kimodo codebase underneath
 ## What Works Now
 
 - `Nein3D.exe` starts the local stack from one launcher.
-- The old Viser/Kimodo backend still performs the actual model loading and generation.
-- The new web DCC interface opens separately on port `7870`.
-- The prompt is editable in a bottom transparent glass dock over the viewport.
-- The web UI has a 3D-editor layout: top menu, toolbar, left tool strip, viewport, right command panel, bottom timeline.
-- The web UI can embed the old backend in `Live Engine` mode so the original generation/timeline/USD tools keep working.
-- The web UI can save a local `.nein3d.json` project snapshot.
-- The app uses a black/cyan style by default.
+- The Viser/Kimodo backend performs model loading and generation.
+- The launcher auto-detects the best available GPU backend (NVIDIA CUDA, AMD/Intel via DirectML, Intel XPU, Apple MPS) with a CPU fallback.
 - The backend uses aggressive GPU cleanup and keeps the text encoder on CPU where possible.
-- USD loading exists in the old backend UI.
-- Timeline length sync fixes were added in the backend.
+- USD loading is available in the backend UI.
+- Timeline length syncs to animation length.
+
+## Supported GPUs
+
+The launcher probes the venv at startup and exports `KIMODO_GPU_BACKEND` for the backend, which picks the matching `torch` device:
+
+| Vendor                       | Backend     | Install                                                        |
+| ---------------------------- | ----------- | -------------------------------------------------------------- |
+| NVIDIA                       | `cuda`      | `pip install torch --index-url https://download.pytorch.org/whl/cu121` |
+| AMD / Intel iGPU on Windows  | `directml`  | `pip install torch-directml`                                   |
+| Intel Arc / discrete         | `xpu`       | Intel Extension for PyTorch build                              |
+| Apple Silicon (Mac only)     | `mps`       | Stock PyTorch                                                  |
+| Any                          | `cpu`       | Fallback                                                       |
+
+Force a backend with `Nein3D.exe --gpu-backend directml` or `KIMODO_GPU_BACKEND=cuda`.
 
 ## What Is Not Connected Yet
 
-- The new web `Generate` button does not yet call backend generation directly.
-- The web prompt edits are local to the web UI until backend binding is implemented.
-- The right-side model settings in the web UI are layout/state only for now.
-- The web USD panel is a UI placeholder; real USD loading still lives in the backend UI.
-- Undo/redo in the web UI is not backed by an action history yet.
-- The current `.exe` is a launcher, not a fully portable app bundle with Python, CUDA, PyTorch, and models inside.
+- The current `.exe` is a launcher, not a fully portable app bundle with Python, CUDA/DirectML, PyTorch, and models inside.
+- DirectML/XPU/MPS paths share the same code path as CUDA in the engine; some ops may still fall back to CPU on non-CUDA backends.
 
 ## Current Architecture
 
 ```text
 Nein3D.exe
-  ├─ starts text encoder server on 9550
-  ├─ starts Kimodo/Viser backend on 7860
-  └─ starts Nein3D web UI on 7870
+  ├─ probes venv for the best GPU backend (cuda / directml / xpu / mps / cpu)
+  ├─ starts text encoder server on 9550 (CPU)
+  └─ starts Kimodo/Viser backend on 7860 (selected GPU)
 
 Browser
-  └─ opens http://127.0.0.1:7870/?engine=http://127.0.0.1:7860&mode=engine
+  └─ opens http://127.0.0.1:7860
 ```
-
-The new web UI should become the real product interface. The old Viser UI should be treated as the engine/admin backend until its useful functions are exposed through an API.
 
 ## LLaMA / LLM2Vec Replacement Note
 
@@ -76,37 +78,16 @@ Recommended staged plan:
 5. If dimensions or distribution differ, train or fit a projection layer.
 6. Only then make API mode the default.
 
-This is not implemented yet. It is documented here so the plan is not lost when moving to a new repository.
-
 ## Next Development Steps
 
-1. Add a backend HTTP API for the new web UI:
-   - `/api/status`
-   - `/api/generate`
-   - `/api/load-usd`
-   - `/api/save-project`
-   - `/api/export`
-
-2. Connect the web prompt dock to real generation.
-
-3. Move USD loading from the old backend UI into the new web command panel.
-
-4. Add a real project format:
-   - `project.nein3d.json`
-   - prompts
-   - timeline
-   - model settings
-   - asset references
-   - generated motion paths
-
-5. Build a portable Windows release:
+1. Validate end-to-end runs on AMD (DirectML) and Intel Arc (XPU) hardware.
+2. Add a backend HTTP API so a future shell can drive generation programmatically.
+3. Build a portable Windows release:
    - `Nein3D.exe`
-   - local Python runtime or embedded venv
-   - CUDA/PyTorch dependencies
+   - embedded Python runtime
+   - vendor-correct PyTorch wheels (CUDA / DirectML / XPU)
    - model cache strategy
    - logs and crash reports
-
-6. Create the real remote repository when the GitHub/Git remote is provided.
 
 ## Run
 
@@ -120,19 +101,15 @@ Without opening the browser:
 .\release\windows\Nein3D.exe --no-browser
 ```
 
-Open the new web UI manually:
+Force a specific GPU backend:
 
-```text
-http://127.0.0.1:7870/?engine=http://127.0.0.1:7860
+```powershell
+.\release\windows\Nein3D.exe --gpu-backend cuda
+.\release\windows\Nein3D.exe --gpu-backend directml
+.\release\windows\Nein3D.exe --gpu-backend cpu
 ```
 
-Open the new shell with the old working backend embedded by default:
-
-```text
-http://127.0.0.1:7870/?engine=http://127.0.0.1:7860&mode=engine
-```
-
-Open the old backend UI manually:
+Open the backend UI manually:
 
 ```text
 http://127.0.0.1:7860
@@ -140,7 +117,7 @@ http://127.0.0.1:7860
 
 ## Repository Transfer Note
 
-When a new repository URL is provided, push the `dev` branch there first. Do not commit local model folders or cache folders. The following local/untracked folders should stay out of git unless intentionally handled with LFS or a release artifact process:
+When a new repository URL is provided, push the relevant branch there. Do not commit local model folders or cache folders. The following local/untracked folders should stay out of git unless intentionally handled with LFS or a release artifact process:
 
 - `kimodo/assets/demo/examples/kimodo-g1-seed/`
 - `kimodo/assets/demo/examples/kimodo-soma-rp-v1.1/`
@@ -152,7 +129,6 @@ When a new repository URL is provided, push the `dev` branch there first. Do not
 ## Last Important Commits
 
 - `e7f4b39` - Move prompt editor to viewport dock
-- `29d98e5` - Add web DCC interface
 - `39b372e` - Add Windows exe launcher
 - `dea8dfc` - Add production readiness PDF
 - `3078dfa` - Convert action buttons to icons

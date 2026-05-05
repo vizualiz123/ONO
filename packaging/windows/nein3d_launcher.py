@@ -15,7 +15,6 @@ from pathlib import Path
 APP_NAME = "Nein3D"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_UI_PORT = 7860
-DEFAULT_WEB_PORT = 7870
 DEFAULT_TEXT_ENCODER_PORT = 9550
 DEFAULT_MODEL = "kimodo-soma-seed"
 
@@ -59,6 +58,61 @@ def find_project_root() -> Path:
 
 def python_exe(root: Path) -> Path:
     return root / ".venv" / "Scripts" / "python.exe"
+
+
+def detect_gpu_backend(python: Path) -> tuple[str, str]:
+    """Probe the venv for the best available accelerator.
+
+    Returns (backend, label). Backend is one of: cuda, directml, xpu, mps, cpu.
+    """
+    override = os.environ.get("KIMODO_GPU_BACKEND", "").strip().lower()
+    if override in {"cuda", "directml", "xpu", "mps", "cpu"}:
+        return override, f"override:{override}"
+
+    probe = (
+        "import json, sys\n"
+        "result = {'backend': 'cpu', 'label': 'cpu'}\n"
+        "try:\n"
+        "    import torch\n"
+        "    if torch.cuda.is_available() and torch.cuda.device_count() > 0:\n"
+        "        result = {'backend': 'cuda', 'label': torch.cuda.get_device_name(0)}\n"
+        "    else:\n"
+        "        try:\n"
+        "            import torch_directml\n"
+        "            if torch_directml.is_available():\n"
+        "                idx = torch_directml.default_device()\n"
+        "                result = {'backend': 'directml', 'label': torch_directml.device_name(idx)}\n"
+        "        except Exception:\n"
+        "            pass\n"
+        "        if result['backend'] == 'cpu' and hasattr(torch, 'xpu') and torch.xpu.is_available():\n"
+        "            result = {'backend': 'xpu', 'label': torch.xpu.get_device_name(0)}\n"
+        "        if result['backend'] == 'cpu' and getattr(torch.backends, 'mps', None) and torch.backends.mps.is_available():\n"
+        "            result = {'backend': 'mps', 'label': 'Apple MPS'}\n"
+        "except Exception as exc:\n"
+        "    result = {'backend': 'cpu', 'label': f'cpu (probe failed: {exc})'}\n"
+        "sys.stdout.write(json.dumps(result))\n"
+    )
+
+    try:
+        completed = subprocess.run(
+            [str(python), "-c", probe],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except Exception as exc:
+        return "cpu", f"cpu (probe error: {exc})"
+
+    if completed.returncode != 0:
+        return "cpu", f"cpu (probe rc={completed.returncode})"
+
+    try:
+        import json
+
+        payload = json.loads(completed.stdout.strip().splitlines()[-1])
+        return str(payload.get("backend", "cpu")), str(payload.get("label", "cpu"))
+    except Exception as exc:
+        return "cpu", f"cpu (parse error: {exc})"
 
 
 def port_open(host: str, port: int) -> bool:
@@ -129,7 +183,13 @@ def start_process(
     return process
 
 
-def build_env(host: str, ui_port: int, text_encoder_port: int, title: str) -> tuple[dict[str, str], dict[str, str]]:
+def build_env(
+    host: str,
+    ui_port: int,
+    text_encoder_port: int,
+    title: str,
+    backend: str,
+) -> tuple[dict[str, str], dict[str, str]]:
     text_encoder_env = {
         "GRADIO_SERVER_NAME": host,
         "GRADIO_SERVER_PORT": str(text_encoder_port),
@@ -147,6 +207,7 @@ def build_env(host: str, ui_port: int, text_encoder_port: int, title: str) -> tu
         "KIMODO_DARK_MODE": "true",
         "KIMODO_AGGRESSIVE_GPU_CLEANUP": "true",
         "KIMODO_TEXT_ENCODER_CPU": "true",
+        "KIMODO_GPU_BACKEND": backend,
         "PYTORCH_CUDA_ALLOC_CONF": os.environ.get(
             "PYTORCH_CUDA_ALLOC_CONF",
             "max_split_size_mb:128",
@@ -174,16 +235,20 @@ def stop_processes(processes: list[subprocess.Popen]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Start the Nein3D local studio.")
+    parser = argparse.ArgumentParser(description="Start the Nein3D Windows studio.")
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--ui-port", type=int, default=DEFAULT_UI_PORT)
-    parser.add_argument("--web-port", type=int, default=DEFAULT_WEB_PORT)
     parser.add_argument("--text-encoder-port", type=int, default=DEFAULT_TEXT_ENCODER_PORT)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--title", default=APP_NAME)
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--detach", action="store_true", help="Start services and exit the launcher.")
-    parser.add_argument("--legacy-ui", action="store_true", help="Open the backend Viser UI instead of the web DCC UI.")
+    parser.add_argument(
+        "--gpu-backend",
+        choices=["auto", "cuda", "directml", "xpu", "mps", "cpu"],
+        default="auto",
+        help="Force a specific GPU backend. 'auto' picks the best available (CUDA -> DirectML -> XPU -> MPS -> CPU).",
+    )
     return parser.parse_args()
 
 
@@ -197,11 +262,18 @@ def main() -> int:
         print(f"Project: {root}")
         print(f"Python:  {py}")
 
+        if args.gpu_backend == "auto":
+            backend, label = detect_gpu_backend(py)
+        else:
+            backend, label = args.gpu_backend, f"forced:{args.gpu_backend}"
+        print(f"GPU:     {backend} ({label})")
+
         text_encoder_env, studio_env = build_env(
             args.host,
             args.ui_port,
             args.text_encoder_port,
             args.title,
+            backend,
         )
 
         if port_open(args.host, args.text_encoder_port):
@@ -242,36 +314,7 @@ def main() -> int:
                 process=studio,
             )
 
-        if port_open(args.host, args.web_port):
-            print(f"[OK] Web UI already running on {args.host}:{args.web_port}")
-        else:
-            web = start_process(
-                root=root,
-                name="web UI",
-                args=[
-                    str(py),
-                    str(root / "packaging" / "windows" / "nein3d_web_server.py"),
-                    "--host",
-                    args.host,
-                    "--port",
-                    str(args.web_port),
-                ],
-                env={},
-                log_stem="web",
-            )
-            started.append(web)
-            wait_for_port(
-                host=args.host,
-                port=args.web_port,
-                name="Web UI",
-                timeout_seconds=45,
-                process=web,
-            )
-
-        # Default users into the new web DCC shell; keep the legacy UI available as backend/admin.
-        engine_url = f"http://{args.host}:{args.ui_port}"
-        web_url = f"http://{args.host}:{args.web_port}/?engine={engine_url}&mode=engine"
-        url = engine_url if args.legacy_ui else web_url
+        url = f"http://{args.host}:{args.ui_port}"
         print(f"[OK] {APP_NAME} is ready: {url}")
         if not args.no_browser:
             webbrowser.open(url)

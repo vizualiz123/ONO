@@ -70,9 +70,53 @@ def _env_flag(name: str, default: bool = True) -> bool:
     return value.strip().lower() not in {"0", "false", "no", "off"}
 
 
+def _select_device() -> "torch.device | str":
+    """Pick the best available accelerator across NVIDIA/AMD/Intel/Apple.
+
+    Honors KIMODO_GPU_BACKEND={cuda,directml,xpu,mps,cpu}. When unset or 'auto',
+    probes CUDA first, then DirectML (AMD/Intel on Windows), then Intel XPU,
+    then Apple MPS, falling back to CPU.
+    """
+    backend = (os.environ.get("KIMODO_GPU_BACKEND") or "auto").strip().lower()
+
+    if backend in {"", "auto"}:
+        if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+            return torch.device("cuda:0")
+        try:
+            import torch_directml  # type: ignore
+
+            if torch_directml.is_available():
+                return torch_directml.device()
+        except Exception:
+            pass
+        if hasattr(torch, "xpu") and torch.xpu.is_available():
+            return torch.device("xpu:0")
+        mps = getattr(torch.backends, "mps", None)
+        if mps is not None and mps.is_available():
+            return torch.device("mps")
+        return torch.device("cpu")
+
+    if backend == "cuda" and torch.cuda.is_available():
+        return torch.device("cuda:0")
+    if backend == "directml":
+        try:
+            import torch_directml  # type: ignore
+
+            if torch_directml.is_available():
+                return torch_directml.device()
+        except Exception:
+            pass
+    if backend == "xpu" and hasattr(torch, "xpu") and torch.xpu.is_available():
+        return torch.device("xpu:0")
+    mps = getattr(torch.backends, "mps", None)
+    if backend == "mps" and mps is not None and mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
 class Demo:
     def __init__(self, default_model_name: str = DEFAULT_MODEL):
-        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        self.device = _select_device()
         print(f"Using device: {self.device}")
         self.aggressive_gpu_cleanup = _env_flag("KIMODO_AGGRESSIVE_GPU_CLEANUP", True)
         self.keep_text_encoder_cpu = _env_flag("KIMODO_TEXT_ENCODER_CPU", True)
