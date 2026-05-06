@@ -205,6 +205,28 @@ def wait_for_port(
     raise TimeoutError(f"{name} did not open port {host}:{port} in time.")
 
 
+def open_desktop_window(url: str, title: str) -> None:
+    try:
+        import webview  # type: ignore
+    except Exception as exc:
+        raise RuntimeError(
+            "Desktop window runtime is missing. Install it with: "
+            ".venv\\Scripts\\python.exe -m pip install pywebview"
+        ) from exc
+
+    print(f"[>>] Opening desktop window: {title}")
+    webview.create_window(
+        title,
+        url,
+        width=1440,
+        height=920,
+        min_size=(1024, 700),
+        resizable=True,
+        text_select=True,
+    )
+    webview.start(gui="edgechromium", debug=False)
+
+
 def start_process(
     *,
     root: Path,
@@ -301,7 +323,9 @@ def parse_args() -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--text-encoder-port", type=int, default=DEFAULT_TEXT_ENCODER_PORT)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--title", default=APP_NAME)
-    parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--browser", action="store_true", help="Open in the external browser instead of the app window.")
+    parser.add_argument("--no-browser", action="store_true", help="Legacy: do not open the external browser.")
+    parser.add_argument("--no-window", action="store_true", help="Start services without opening the desktop app window.")
     parser.add_argument("--detach", action="store_true", help="Start services and exit the launcher.")
     parser.add_argument(
         "--gpu-backend",
@@ -395,7 +419,14 @@ def main() -> int:
 
         url = f"http://{args.host}:{args.ui_port}"
         print(f"[OK] {APP_NAME} is ready: {url}")
-        if not args.no_browser:
+        if not args.detach and not args.no_window and not args.browser:
+            try:
+                open_desktop_window(url, args.title)
+            finally:
+                stop_processes(started)
+            return 0
+
+        if args.browser and not args.no_browser:
             webbrowser.open(url)
 
         if args.detach:

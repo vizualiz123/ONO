@@ -44,6 +44,14 @@ _bundle("imageio")
 _bundle("trimesh", optional=True)
 _bundle("plyfile", optional=True)
 
+# Desktop shell runtime: opens the studio in a native Windows WebView window.
+_bundle("webview")
+_bundle("pythonnet")
+_bundle("clr_loader")
+_bundle("cffi")
+_bundle("bottle")
+_bundle("proxy_tools")
+
 # Text encoder runtime (gradio + transformers + accelerate stack).
 _bundle("gradio")
 _bundle("gradio_client")
@@ -91,6 +99,8 @@ hiddenimports.extend(
         "kimodo.exports.mujoco",
         "kimodo.metrics",
         "kimodo.tools",
+        "webview.platforms.edgechromium",
+        "webview.platforms.winforms",
     ]
 )
 hiddenimports.extend(collect_submodules("kimodo"))
@@ -131,7 +141,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

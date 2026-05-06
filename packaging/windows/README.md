@@ -2,7 +2,9 @@
 
 This folder builds the Windows-only launcher for Nein3D.
 
-`Nein3D.exe` is a small launcher, not a full bundled CUDA/PyTorch/model binary yet. It starts the local `.venv`, the text encoder, and the backend studio with production defaults:
+`Nein3D.exe` starts the local text encoder and the 3D studio, then opens the
+studio in its own Windows desktop window via WebView2/pywebview. It does not
+open a normal browser tab by default.
 
 - app title: `Nein3D`
 - dark theme enabled
@@ -10,6 +12,7 @@ This folder builds the Windows-only launcher for Nein3D.
 - aggressive GPU cleanup enabled
 - logs in `logs/`
 - backend engine on `http://127.0.0.1:7860`
+- desktop app window: enabled by default
 
 ## Supported GPUs
 
@@ -32,24 +35,25 @@ Build:
 Output:
 
 ```text
-release\windows\Nein3D.exe
+release\windows\Nein3D\Nein3D.exe
 ```
 
 Run:
 
 ```powershell
-.\release\windows\Nein3D.exe
+.\release\windows\Nein3D\Nein3D.exe
 ```
 
 Useful flags:
 
 ```powershell
-.\release\windows\Nein3D.exe --no-browser
-.\release\windows\Nein3D.exe --detach
-.\release\windows\Nein3D.exe --ui-port 7861
-.\release\windows\Nein3D.exe --model kimodo-soma-seed
-.\release\windows\Nein3D.exe --gpu-backend directml
-.\release\windows\Nein3D.exe --gpu-backend cuda
+.\release\windows\Nein3D\Nein3D.exe --browser
+.\release\windows\Nein3D\Nein3D.exe --no-window
+.\release\windows\Nein3D\Nein3D.exe --detach
+.\release\windows\Nein3D\Nein3D.exe --ui-port 7861
+.\release\windows\Nein3D\Nein3D.exe --model kimodo-soma-seed
+.\release\windows\Nein3D\Nein3D.exe --gpu-backend directml
+.\release\windows\Nein3D\Nein3D.exe --gpu-backend cuda
 ```
 
 For a true portable release later: package the Python runtime, vendor-appropriate PyTorch wheels (CUDA / DirectML / XPU), USD runtime, app assets, and a model cache next to this launcher, or move to an installer.

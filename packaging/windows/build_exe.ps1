@@ -25,17 +25,26 @@ if ($Clean -and (Test-Path -LiteralPath $BuildRoot)) {
 New-Item -ItemType Directory -Force -Path $BuildRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $DistRoot | Out-Null
 
-# Ensure pyinstaller is available
-$Check = Start-Process `
-    -FilePath $Python `
-    -ArgumentList @("-c", "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('PyInstaller') else 1)") `
-    -Wait `
-    -PassThru `
-    -WindowStyle Hidden
+function Ensure-PythonPackage {
+    param(
+        [string]$ImportName,
+        [string]$PackageName
+    )
 
-if ($Check.ExitCode -ne 0) {
-    & $Python -m pip install pyinstaller
+    $Check = Start-Process `
+        -FilePath $Python `
+        -ArgumentList @("-c", "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('$ImportName') else 1)") `
+        -Wait `
+        -PassThru `
+        -WindowStyle Hidden
+
+    if ($Check.ExitCode -ne 0) {
+        & $Python -m pip install $PackageName
+    }
 }
+
+Ensure-PythonPackage -ImportName "PyInstaller" -PackageName "pyinstaller"
+Ensure-PythonPackage -ImportName "webview" -PackageName "pywebview"
 
 $PyInstallerArgs = @(
     "-m", "PyInstaller",
