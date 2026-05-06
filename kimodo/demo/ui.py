@@ -181,7 +181,26 @@ def create_gui(
     gui_prev_frame_button = None
     gui_timeline = None
     gui_duration_slider = None
-    ICON_BUTTON_LABEL = ""
+    LOAD_MODEL_BUTTON_LABEL = "Загрузить модель"
+    LOAD_EXAMPLE_BUTTON_LABEL = "Загрузить пример"
+    GENERATE_BUTTON_LABEL = "Сгенерировать"
+    EDIT_BUTTON_LABEL = "Редактировать"
+    EXIT_EDIT_BUTTON_LABEL = "Выйти из редактирования"
+    CHOOSE_VARIANT_BUTTON_LABEL = "Выбрать вариант"
+    SNAP_BUTTON_LABEL = "К ключу"
+    RESET_POSE_BUTTON_LABEL = "Сбросить позу"
+    UNDO_BUTTON_LABEL = "Отменить"
+    CLEAR_CONTROL_BUTTON_LABEL = "Очистить контроль"
+    SAVE_MOTION_BUTTON_LABEL = "Сохранить движение"
+    LOAD_MOTION_BUTTON_LABEL = "Загрузить движение"
+    SAVE_CONTROL_BUTTON_LABEL = "Сохранить контроль"
+    LOAD_CONTROL_BUTTON_LABEL = "Загрузить контроль"
+    SAVE_EXAMPLE_BUTTON_LABEL = "Сохранить пример"
+    SCREENSHOT_BUTTON_LABEL = "Скриншот"
+    VIDEO_BUTTON_LABEL = "Видео"
+    DOWNLOAD_MOTION_BUTTON_LABEL = "Скачать движение"
+    LOAD_USD_BUTTON_LABEL = "Загрузить USD"
+    CLEAR_USD_BUTTON_LABEL = "Очистить USD"
     GENERATE_BUTTON_HINT = "Сгенерировать движение."
     GENERATE_DISABLED_HINT = "Генерация выключена в режиме редактирования."
     CHOOSE_VARIANT_HINT = "Сначала выбери один из вариантов в сцене."
@@ -247,7 +266,7 @@ def create_gui(
                 content=f"**Модель:** {initial_version}",
             )
             gui_load_model_button = client.gui.add_button(
-                ICON_BUTTON_LABEL,
+                LOAD_MODEL_BUTTON_LABEL,
                 hint="Загрузить выбранную модель.",
                 icon=viser.Icon.DATABASE_IMPORT,
             )
@@ -301,7 +320,7 @@ def create_gui(
                 initial_value=example_names[0],
             )
             gui_load_example_button = client.gui.add_button(
-                ICON_BUTTON_LABEL,
+                LOAD_EXAMPLE_BUTTON_LABEL,
                 hint="Загрузить выбранный пример.",
                 disabled=not example_dict,
                 icon=viser.Icon.FOLDER_OPEN,
@@ -492,7 +511,7 @@ def create_gui(
                 )
 
             gui_generate_button = client.gui.add_button(
-                ICON_BUTTON_LABEL,
+                GENERATE_BUTTON_LABEL,
                 color="green",
                 hint=GENERATE_BUTTON_HINT,
                 icon=viser.Icon.ROCKET,
@@ -505,24 +524,24 @@ def create_gui(
                 visible="g1" not in _model_name,
             )
             gui_edit_constraint_button = client.gui.add_button(
-                ICON_BUTTON_LABEL,
+                EDIT_BUTTON_LABEL,
                 hint=EDIT_MODE_HINT,
                 icon=viser.Icon.PENCIL,
             )
             gui_snap_to_constraint_button = client.gui.add_button(
-                ICON_BUTTON_LABEL,
+                SNAP_BUTTON_LABEL,
                 disabled=True,
                 hint="Перейти к ключу на текущем кадре.",
                 icon=viser.Icon.TARGET_ARROW,
             )
             gui_reset_constraint_button = client.gui.add_button(
-                ICON_BUTTON_LABEL,
+                RESET_POSE_BUTTON_LABEL,
                 disabled=True,
                 hint="Сбросить позу ключа.",
                 icon=viser.Icon.RESTORE,
             )
             gui_undo_drag_button = client.gui.add_button(
-                ICON_BUTTON_LABEL,
+                UNDO_BUTTON_LABEL,
                 disabled=True,
                 hint="Отменить последнее движение манипулятора.",
                 icon=viser.Icon.ARROW_BACK_UP,
@@ -553,7 +572,7 @@ def create_gui(
                 apply_constraint_overlay_visibility(session)
 
             gui_clear_all_constraints_button = client.gui.add_button(
-                ICON_BUTTON_LABEL,
+                CLEAR_CONTROL_BUTTON_LABEL,
                 color="red",
                 hint="Очистить весь контроль.",
                 icon=viser.Icon.TRASH,
@@ -728,7 +747,10 @@ def create_gui(
             visible=not HF_MODE,
         ):
             with client.gui.add_folder("Движение", expand_by_default=False):
-                gui_save_motion_path_text = client.gui.add_text("Куда сохранить", initial_value="output")
+                gui_save_motion_path_text = client.gui.add_text(
+                    "Куда сохранить",
+                    initial_value=os.path.abspath("output"),
+                )
                 gui_save_motion_format_dropdown = client.gui.add_dropdown(
                     "Формат",
                     options=(
@@ -747,7 +769,7 @@ def create_gui(
                     visible=False,
                 )
                 gui_save_motion_button = client.gui.add_button(
-                    ICON_BUTTON_LABEL,
+                    SAVE_MOTION_BUTTON_LABEL,
                     hint="Сохранить текущее движение.",
                     icon=viser.Icon.DEVICE_FLOPPY,
                 )
@@ -757,16 +779,17 @@ def create_gui(
                     hint="SOMA .bvh, Kimodo or AMASS .npz, or G1 MuJoCo .csv",
                 )
                 gui_load_motion_button = client.gui.add_button(
-                    ICON_BUTTON_LABEL,
+                    LOAD_MOTION_BUTTON_LABEL,
                     hint="Загрузить выбранное движение.",
                     icon=viser.Icon.FILE_IMPORT,
                 )
             with client.gui.add_folder("Контроль", expand_by_default=False):
                 gui_save_constraints_path_text = client.gui.add_text(
-                    "Куда сохранить", initial_value="output_constraints.json"
+                    "Куда сохранить",
+                    initial_value=os.path.abspath("output_constraints.json"),
                 )
                 gui_save_constraints_button = client.gui.add_button(
-                    ICON_BUTTON_LABEL,
+                    SAVE_CONTROL_BUTTON_LABEL,
                     hint="Сохранить текущий контроль.",
                     icon=viser.Icon.DEVICE_FLOPPY,
                 )
@@ -774,7 +797,7 @@ def create_gui(
                     "Откуда загрузить", initial_value="output_constraints.json"
                 )
                 gui_load_constraints_button = client.gui.add_button(
-                    ICON_BUTTON_LABEL,
+                    LOAD_CONTROL_BUTTON_LABEL,
                     hint="Загрузить контроль из файла.",
                     icon=viser.Icon.FILE_IMPORT,
                 )
@@ -787,7 +810,7 @@ def create_gui(
                     ),
                 )
                 gui_save_example_button = client.gui.add_button(
-                    ICON_BUTTON_LABEL,
+                    SAVE_EXAMPLE_BUTTON_LABEL,
                     hint="Сохранить текущий пример.",
                     icon=viser.Icon.DEVICE_FLOPPY,
                 )
@@ -803,7 +826,7 @@ def create_gui(
                     initial_value=False,
                 )
                 gui_load_example_from_path_button = client.gui.add_button(
-                    ICON_BUTTON_LABEL,
+                    LOAD_EXAMPLE_BUTTON_LABEL,
                     hint="Загрузить пример из папки.",
                     icon=viser.Icon.FOLDER_OPEN,
                 )
@@ -844,13 +867,21 @@ def create_gui(
                 """Ensure the save path ends with the correct extension for the chosen format."""
                 name = (raw_path or "").strip()
                 if name == "":
-                    return f"output{ext}"
-                known_exts = (".npz", ".bvh", ".csv", ".fbx", ".usd", ".usda", ".usdc")
+                    name = f"output{ext}"
+                known_exts = (".npz", ".bvh", ".csv", ".fbx", ".usd", ".usda", ".usdc", ".json")
                 if name.lower().endswith(known_exts):
-                    return os.path.splitext(name)[0] + ext
-                if os.path.splitext(name)[1] == "":
-                    return name + ext
-                return name
+                    name = os.path.splitext(name)[0] + ext
+                elif os.path.splitext(name)[1] == "":
+                    name = name + ext
+                save_path = os.path.abspath(os.path.expanduser(name))
+                parent = os.path.dirname(save_path)
+                if parent:
+                    os.makedirs(parent, exist_ok=True)
+                return save_path
+
+            def _coerce_save_dir(raw_path: str) -> str:
+                name = (raw_path or "").strip() or "custom_example_1"
+                return os.path.abspath(os.path.expanduser(name))
 
             def save_motion(client, save_path, fmt):
                 session = demo.client_sessions[client.client_id]
@@ -911,10 +942,11 @@ def create_gui(
                 fmt = str(gui_save_motion_format_dropdown.value).upper()
                 try:
                     saved_path = save_motion(event_client, raw_path, fmt)
+                    gui_save_motion_path_text.value = saved_path
                     event_client.add_notification(
-                        title="Motion saved!",
-                        body=f"Saved motion to {saved_path}",
-                        auto_close_seconds=5.0,
+                        title="Движение сохранено",
+                        body=f"Файл: {saved_path}",
+                        auto_close_seconds=8.0,
                         color="green",
                     )
                 except Exception as e:
@@ -1096,12 +1128,13 @@ def create_gui(
                     return
 
                 try:
-                    save_path = gui_save_constraints_path_text.value
+                    save_path = _coerce_save_path(gui_save_constraints_path_text.value, ext=".json")
                     save_constraints(event_client, save_path)
+                    gui_save_constraints_path_text.value = save_path
                     event_client.add_notification(
-                        title="Constraints saved!",
-                        body=f"Saved constraints to {save_path}",
-                        auto_close_seconds=5.0,
+                        title="Контроль сохранен",
+                        body=f"Файл: {save_path}",
+                        auto_close_seconds=8.0,
                         color="green",
                     )
                 except Exception as e:
@@ -1327,7 +1360,7 @@ def create_gui(
                     hint="Filename for the screenshot (PNG).",
                 )
                 gui_screenshot_button = client.gui.add_button(
-                    ICON_BUTTON_LABEL,
+                    SCREENSHOT_BUTTON_LABEL,
                     hint="Capture the current canvas and download a PNG.",
                     icon=viser.Icon.CAMERA,
                 )
@@ -1338,7 +1371,7 @@ def create_gui(
                     hint="Filename for the video (MP4).",
                 )
                 gui_video_button = client.gui.add_button(
-                    ICON_BUTTON_LABEL,
+                    VIDEO_BUTTON_LABEL,
                     hint="Render every frame and download as MP4.",
                     icon=viser.Icon.VIDEO,
                 )
@@ -1366,7 +1399,7 @@ def create_gui(
                     visible=False,
                 )
                 gui_download_button = client.gui.add_button(
-                    ICON_BUTTON_LABEL,
+                    DOWNLOAD_MOTION_BUTTON_LABEL,
                     hint="Скачать текущее движение.",
                     icon=viser.Icon.DOWNLOAD,
                 )
@@ -1380,9 +1413,9 @@ def create_gui(
             ) -> None:
                 """Trigger a browser download for an in-memory byte payload.
 
-                Important: this intentionally does NOT use `showSaveFilePicker()` to avoid
-                Chrome/Edge's file-write permission prompt ("this site can see edits you make").
-                If you want "always ask where to save", configure your browser download settings.
+                In the desktop WebView, prefer the native save picker so the user can
+                choose the folder. Fall back to a standard browser download when the
+                File System Access API is unavailable.
                 """
                 import base64
                 import json
@@ -1401,15 +1434,46 @@ def create_gui(
   for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
   const blob = new Blob([bytes], {{ type: mimeType }});
 
-  // Standard browser download behavior.
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  const fallbackDownload = () => {{
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }};
+
+  const saveWithPicker = async () => {{
+    if (!window.showSaveFilePicker) return false;
+    const extIndex = filename.lastIndexOf(".");
+    const ext = extIndex >= 0 ? filename.slice(extIndex) : "";
+    const options = {{ suggestedName: filename }};
+    if (ext) {{
+      options.types = [
+        {{
+          description: "Nein3D export",
+          accept: {{ [mimeType || "application/octet-stream"]: [ext] }},
+        }},
+      ];
+    }}
+    const handle = await window.showSaveFilePicker(options);
+    const writable = await handle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+    return true;
+  }};
+
+  saveWithPicker()
+    .then((usedPicker) => {{
+      if (!usedPicker) fallbackDownload();
+    }})
+    .catch((err) => {{
+      if (err && err.name === "AbortError") return;
+      console.error("Save picker failed, falling back to download", err);
+      fallbackDownload();
+    }});
 }})();
 """
                 # Reuse viser’s JS execution mechanism (used for Plotly setup).
@@ -1721,9 +1785,9 @@ def create_gui(
                     )
 
                     event_client.add_notification(
-                        title="Download started",
-                        body=f"Saving {filename}",
-                        auto_close_seconds=5.0,
+                        title="Сохранение файла",
+                        body=f"Выбери папку и имя в окне сохранения: {filename}",
+                        auto_close_seconds=8.0,
                         color="green",
                     )
                 except Exception as e:
@@ -1746,11 +1810,11 @@ def create_gui(
             if session is None:
                 return
 
-            save_dir = gui_save_example_path_text.value
+            save_dir = _coerce_save_dir(gui_save_example_path_text.value)
             if os.path.exists(save_dir):
                 event_client.add_notification(
                     title="Failed to save example!",
-                    body="Example directory already exists",
+                    body=f"Папка уже существует: {save_dir}",
                     auto_close_seconds=10.0,
                     color="red",
                 )
@@ -1803,11 +1867,12 @@ def create_gui(
                 # update the example dropdown
                 session.example_dict = viser_utils.load_example_cases(session.examples_base_dir)
                 update_examples_dropdown(session.example_dict, keep_selection=True)
+                gui_save_example_path_text.value = save_dir
 
                 event_client.add_notification(
-                    title="Example saved!",
-                    body=f"Saved example to {save_dir}",
-                    auto_close_seconds=5.0,
+                    title="Пример сохранен",
+                    body=f"Папка: {save_dir}",
+                    auto_close_seconds=8.0,
                     color="green",
                 )
             except Exception as e:
@@ -2289,11 +2354,11 @@ def create_gui(
             gui_cfg_constraint_weight_slider.visible = val
 
         def exit_editing_mode(session: ClientSession):
-            gui_edit_constraint_button.label = ICON_BUTTON_LABEL
+            gui_edit_constraint_button.label = EDIT_BUTTON_LABEL
             gui_edit_constraint_button.hint = EDIT_MODE_HINT
             gui_edit_constraint_button.icon = viser.Icon.PENCIL
             gui_generate_button.disabled = False
-            gui_generate_button.label = ICON_BUTTON_LABEL
+            gui_generate_button.label = GENERATE_BUTTON_LABEL
             gui_generate_button.hint = GENERATE_BUTTON_HINT
             gui_generate_button.icon = viser.Icon.ROCKET
             gui_reset_constraint_button.disabled = True
@@ -2346,11 +2411,11 @@ def create_gui(
             )
 
             if session.edit_mode:
-                gui_edit_constraint_button.label = ICON_BUTTON_LABEL
+                gui_edit_constraint_button.label = EXIT_EDIT_BUTTON_LABEL
                 gui_edit_constraint_button.hint = EXIT_EDIT_MODE_HINT
                 gui_edit_constraint_button.icon = viser.Icon.LOGOUT
                 gui_generate_button.disabled = True
-                gui_generate_button.label = ICON_BUTTON_LABEL
+                gui_generate_button.label = GENERATE_BUTTON_LABEL
                 gui_generate_button.hint = GENERATE_DISABLED_HINT
                 gui_generate_button.icon = viser.Icon.ROCKET
                 if "g1" in session.model_name:
@@ -3068,7 +3133,7 @@ def create_gui(
                         gui_generate_button.disabled = False
                         gui_snap_to_constraint_button.disabled = False
                         client.timeline.enable_constraints()
-                        gui_generate_button.label = ICON_BUTTON_LABEL
+                        gui_generate_button.label = GENERATE_BUTTON_LABEL
                         gui_generate_button.hint = GENERATE_BUTTON_HINT
                         gui_generate_button.icon = viser.Icon.ROCKET
                         gui_save_example_button.disabled = False
@@ -3091,7 +3156,7 @@ def create_gui(
                     gui_edit_constraint_button.disabled = True
                     gui_generate_button.disabled = True
                     gui_snap_to_constraint_button.disabled = True
-                    gui_generate_button.label = ICON_BUTTON_LABEL
+                    gui_generate_button.label = CHOOSE_VARIANT_BUTTON_LABEL
                     gui_generate_button.hint = CHOOSE_VARIANT_HINT
                     gui_generate_button.icon = viser.Icon.HAND_CLICK
                     gui_save_example_button.disabled = True
@@ -3264,12 +3329,12 @@ def create_gui(
             gui_usd_center_checkbox = client.gui.add_checkbox("Центрировать", initial_value=True)
             gui_usd_wireframe_checkbox = client.gui.add_checkbox("Wireframe", initial_value=False)
             gui_load_usd_button = client.gui.add_button(
-                ICON_BUTTON_LABEL,
+                LOAD_USD_BUTTON_LABEL,
                 hint="Загрузить USD 3D в сцену.",
                 icon=viser.Icon.CUBE_PLUS,
             )
             gui_clear_usd_button = client.gui.add_button(
-                ICON_BUTTON_LABEL,
+                CLEAR_USD_BUTTON_LABEL,
                 hint="Очистить загруженный USD 3D.",
                 icon=viser.Icon.CUBE_OFF,
             )

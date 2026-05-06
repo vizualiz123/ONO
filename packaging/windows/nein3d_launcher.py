@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import datetime as dt
 import os
 import signal
@@ -17,6 +18,12 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_UI_PORT = 7860
 DEFAULT_TEXT_ENCODER_PORT = 9550
 DEFAULT_MODEL = "kimodo-soma-seed"
+DEFAULT_WINDOW_DOCK = "right"
+NORMAL_WINDOW_WIDTH = 1440
+NORMAL_WINDOW_HEIGHT = 920
+DOCK_WINDOW_RATIO = 0.42
+DOCK_WINDOW_MIN_WIDTH = 720
+WINDOW_MIN_SIZE = (720, 640)
 
 
 def _frozen() -> bool:
@@ -205,7 +212,119 @@ def wait_for_port(
     raise TimeoutError(f"{name} did not open port {host}:{port} in time.")
 
 
-def open_desktop_window(url: str, title: str) -> None:
+def _default_dock() -> str:
+    value = os.environ.get("NEIN3D_WINDOW_DOCK", DEFAULT_WINDOW_DOCK).strip().lower()
+    return value if value in {"none", "left", "right"} else DEFAULT_WINDOW_DOCK
+
+
+def _windows_work_area() -> tuple[int, int, int, int]:
+    """Return the usable desktop work area as x, y, width, height."""
+    if os.name == "nt":
+        class RECT(ctypes.Structure):
+            _fields_ = [
+                ("left", ctypes.c_long),
+                ("top", ctypes.c_long),
+                ("right", ctypes.c_long),
+                ("bottom", ctypes.c_long),
+            ]
+
+        rect = RECT()
+        ok = ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(rect), 0)
+        if ok:
+            return (
+                int(rect.left),
+                int(rect.top),
+                int(rect.right - rect.left),
+                int(rect.bottom - rect.top),
+            )
+    return (0, 0, NORMAL_WINDOW_WIDTH, NORMAL_WINDOW_HEIGHT)
+
+
+def _window_geometry(dock: str) -> tuple[int, int, int, int]:
+    x, y, work_width, work_height = _windows_work_area()
+    if dock in {"left", "right"}:
+        width = min(work_width, max(DOCK_WINDOW_MIN_WIDTH, int(work_width * DOCK_WINDOW_RATIO)))
+        height = work_height
+        return (x if dock == "left" else x + work_width - width, y, width, height)
+
+    width = min(NORMAL_WINDOW_WIDTH, work_width)
+    height = min(NORMAL_WINDOW_HEIGHT, work_height)
+    return (x + max(0, (work_width - width) // 2), y + max(0, (work_height - height) // 2), width, height)
+
+
+def _open_folder(path: Path) -> None:
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        os.startfile(str(path))  # type: ignore[attr-defined]
+    except Exception as exc:
+        print(f"[WARN] Could not open folder {path}: {exc}")
+
+
+def _make_window_menu(url: str, root: Path, window_ref: dict[str, object]):
+    from webview.menu import Menu, MenuAction, MenuSeparator
+
+    def current_window():
+        return window_ref.get("window")
+
+    def reload_view() -> None:
+        window = current_window()
+        if window is not None:
+            window.load_url(url)
+
+    def dock_window(side: str) -> None:
+        window = current_window()
+        if window is None:
+            return
+        x, y, width, height = _window_geometry(side)
+        window.restore()
+        window.resize(width, height)
+        window.move(x, y)
+
+    def normal_window() -> None:
+        dock_window("none")
+
+    def toggle_on_top() -> None:
+        window = current_window()
+        if window is not None:
+            window.on_top = not window.on_top
+
+    def close_window() -> None:
+        window = current_window()
+        if window is not None:
+            window.destroy()
+
+    return [
+        Menu(
+            "Файл",
+            [
+                MenuAction("Открыть папку программы", lambda: _open_folder(root)),
+                MenuAction("Открыть логи", lambda: _open_folder(root / "logs")),
+                MenuSeparator(),
+                MenuAction("Закрыть", close_window),
+            ],
+        ),
+        Menu(
+            "Вид",
+            [
+                MenuAction("Обновить интерфейс", reload_view),
+                MenuAction("Открыть в браузере", lambda: webbrowser.open(url)),
+            ],
+        ),
+        Menu(
+            "Окно",
+            [
+                MenuAction("Прикрепить слева", lambda: dock_window("left")),
+                MenuAction("Прикрепить справа", lambda: dock_window("right")),
+                MenuAction("Обычный размер", normal_window),
+                MenuAction("Во весь экран", lambda: current_window() and current_window().toggle_fullscreen()),
+                MenuAction("Поверх окон", toggle_on_top),
+            ],
+        ),
+        Menu("Помощь", [MenuAction("Открыть адрес студии", lambda: webbrowser.open(url))]),
+    ]
+
+
+def open_desktop_window(url: str, title: str, *, root: Path, dock: str = DEFAULT_WINDOW_DOCK) -> None:
     try:
         import webview  # type: ignore
     except Exception as exc:
@@ -214,16 +333,23 @@ def open_desktop_window(url: str, title: str) -> None:
             ".venv\\Scripts\\python.exe -m pip install pywebview"
         ) from exc
 
-    print(f"[>>] Opening desktop window: {title}")
-    webview.create_window(
+    dock = dock if dock in {"none", "left", "right"} else DEFAULT_WINDOW_DOCK
+    x, y, width, height = _window_geometry(dock)
+    window_ref: dict[str, object] = {}
+    print(f"[>>] Opening desktop window: {title} ({dock}, {width}x{height} at {x},{y})")
+    window = webview.create_window(
         title,
         url,
-        width=1440,
-        height=920,
-        min_size=(1024, 700),
+        width=width,
+        height=height,
+        x=x,
+        y=y,
+        min_size=WINDOW_MIN_SIZE,
         resizable=True,
         text_select=True,
+        menu=_make_window_menu(url, root, window_ref),
     )
+    window_ref["window"] = window
     webview.start(gui="edgechromium", debug=False)
 
 
@@ -328,6 +454,12 @@ def parse_args() -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--no-window", action="store_true", help="Start services without opening the desktop app window.")
     parser.add_argument("--detach", action="store_true", help="Start services and exit the launcher.")
     parser.add_argument(
+        "--dock",
+        choices=["none", "left", "right"],
+        default=_default_dock(),
+        help="Initial desktop-window docking. Default: right. Use --dock none for centered window.",
+    )
+    parser.add_argument(
         "--gpu-backend",
         choices=["auto", "cuda", "directml", "xpu", "mps", "cpu"],
         default="auto",
@@ -421,7 +553,7 @@ def main() -> int:
         print(f"[OK] {APP_NAME} is ready: {url}")
         if not args.detach and not args.no_window and not args.browser:
             try:
-                open_desktop_window(url, args.title)
+                open_desktop_window(url, args.title, root=root, dock=args.dock)
             finally:
                 stop_processes(started)
             return 0
