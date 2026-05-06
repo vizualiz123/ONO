@@ -39,6 +39,21 @@ When using a SOMA model and passing the `--bvh` flag to CLI generation, Kimodo a
 
 The exporter writes a standard plain-text BVH file and scales joint offsets and root motion from meters to centimeters (same format as the SEED dataset release). If multiple samples are generated, files are saved with suffixes like `_00`, `_01`, etc.
 
+## USD Format
+
+The interactive app can export generated motion to USD for DCC tools. The USD exporter writes:
+
+- an animated transform hierarchy under `/World/Nein3D_Motion`
+- one transform per joint with time-sampled local motion
+- small marker spheres so the motion is visible even before skinning/retargeting
+- y-up, meters-per-unit stage metadata
+
+USD export works for SOMA, G1, and SMPL-X skeletons when `usd-core` is installed.
+
+## FBX Format
+
+FBX export is available from the SOMA motion menu through a Blender bridge. Install Blender and make `blender` available on `PATH`, or set `BLENDER_PATH` to the executable. The exporter writes a temporary BVH and asks Blender to export FBX. If Blender is not available, the app reports a clear error instead of writing a fake FBX file.
+
 ## CSV Format for Kimodo-G1
 
 When using `Kimodo-G1` models and providing `--output` to CLI generation, the exporter writes MuJoCo `qpos`

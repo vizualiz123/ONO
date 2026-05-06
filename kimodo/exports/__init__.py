@@ -3,6 +3,7 @@
 """Export utilities: MuJoCo, BVH, SMPLX/AMASS, and motion I/O helpers."""
 
 from .bvh import bvh_to_kimodo_motion, motion_to_bvh_bytes, read_bvh_frame_time_seconds, save_motion_bvh
+from .fbx import motion_to_fbx_bytes, save_motion_fbx
 from .motion_convert_lib import convert_motion_files
 from .motion_formats import (
     infer_npz_kind,
@@ -32,6 +33,7 @@ from .smplx import (
     get_amass_parameters,
     kimodo_y_up_to_amass_coord_rotation_matrix,
 )
+from .usd import motion_to_usd_bytes, save_motion_usd
 
 __all__ = [
     "AMASSConverter",
@@ -57,9 +59,13 @@ __all__ = [
     "load_motion_file",
     "motion_dict_to_numpy",
     "motion_to_bvh_bytes",
+    "motion_to_fbx_bytes",
+    "motion_to_usd_bytes",
     "read_bvh_frame_time_seconds",
     "resolve_source_fps",
     "save_kimodo_npz",
     "save_kimodo_npz_at_target_fps",
     "save_motion_bvh",
+    "save_motion_fbx",
+    "save_motion_usd",
 ]

@@ -22,6 +22,7 @@ This repository currently still contains the original Kimodo codebase underneath
 - The launcher auto-detects the best available GPU backend (NVIDIA CUDA, AMD/Intel via DirectML, Intel XPU, Apple MPS) with a CPU fallback.
 - The backend uses aggressive GPU cleanup and keeps the text encoder on CPU where possible.
 - USD loading is available in the backend UI.
+- Motion export supports NPZ/BVH/CSV/AMASS plus USD; FBX is wired through Blender when available.
 - Timeline length syncs to animation length.
 
 ## Supported GPUs

@@ -8,6 +8,7 @@ from typing import Optional
 
 from kimodo.constraints import load_constraints_lst, save_constraints_lst
 from kimodo.exports.bvh import motion_to_bvh_bytes, save_motion_bvh
+from kimodo.exports.fbx import motion_to_fbx_bytes, save_motion_fbx
 from kimodo.exports.motion_io import (
     amass_npz_to_bytes,
     g1_csv_to_bytes,
@@ -15,6 +16,7 @@ from kimodo.exports.motion_io import (
     load_motion_file,
     save_kimodo_npz,
 )
+from kimodo.exports.usd import motion_to_usd_bytes, save_motion_usd
 from kimodo.model.registry import kimodo_short_key_for_skeleton_dataset, registry_skeleton_for_joint_count
 from kimodo.tools import to_torch
 from kimodo.viz import viser_utils
@@ -730,11 +732,11 @@ def create_gui(
                 gui_save_motion_format_dropdown = client.gui.add_dropdown(
                     "Формат",
                     options=(
-                        ["NPZ", "CSV"]
+                        ["NPZ", "CSV", "USD"]
                         if "g1" in model_name.lower()
-                        else ["NPZ", "AMASS NPZ"]
+                        else ["NPZ", "AMASS NPZ", "USD"]
                         if "smplx" in model_name.lower()
-                        else ["NPZ", "BVH"]
+                        else ["NPZ", "BVH", "USD", "FBX"]
                     ),
                     initial_value="NPZ",
                 )
@@ -843,7 +845,7 @@ def create_gui(
                 name = (raw_path or "").strip()
                 if name == "":
                     return f"output{ext}"
-                known_exts = (".npz", ".bvh", ".csv")
+                known_exts = (".npz", ".bvh", ".csv", ".fbx", ".usd", ".usda", ".usdc")
                 if name.lower().endswith(known_exts):
                     return os.path.splitext(name)[0] + ext
                 if os.path.splitext(name)[1] == "":
@@ -858,6 +860,25 @@ def create_gui(
                 if fmt == "BVH":
                     save_path = _coerce_save_path(save_path, ext=".bvh")
                     save_motion_bvh(
+                        save_path,
+                        motion.joints_local_rot,
+                        motion.joints_pos[:, session.skeleton.root_idx, :],
+                        skeleton=session.skeleton,
+                        fps=float(session.model_fps),
+                        standard_tpose=bool(gui_save_bvh_standard_tpose_checkbox.value),
+                    )
+                elif fmt == "USD":
+                    save_path = _coerce_save_path(save_path, ext=".usd")
+                    save_motion_usd(
+                        save_path,
+                        motion.joints_local_rot,
+                        motion.joints_pos[:, session.skeleton.root_idx, :],
+                        skeleton=session.skeleton,
+                        fps=float(session.model_fps),
+                    )
+                elif fmt == "FBX":
+                    save_path = _coerce_save_path(save_path, ext=".fbx")
+                    save_motion_fbx(
                         save_path,
                         motion.joints_local_rot,
                         motion.joints_pos[:, session.skeleton.root_idx, :],
@@ -1330,11 +1351,11 @@ def create_gui(
                 gui_download_format_dropdown = client.gui.add_dropdown(
                     "Формат",
                     options=(
-                        ["NPZ", "CSV"]
+                        ["NPZ", "CSV", "USD"]
                         if "g1" in model_name.lower()
-                        else ["NPZ", "AMASS NPZ"]
+                        else ["NPZ", "AMASS NPZ", "USD"]
                         if "smplx" in model_name.lower()
-                        else ["NPZ", "BVH"]
+                        else ["NPZ", "BVH", "USD", "FBX"]
                     ),
                     initial_value="NPZ",
                 )
@@ -1410,13 +1431,30 @@ def create_gui(
                 motion_data = _motion_to_numpy_dict(motion)
                 return amass_npz_to_bytes(motion_data, session.skeleton, session.model_fps)
 
+            def _motion_to_usd_bytes(motion, session: ClientSession) -> bytes:
+                return motion_to_usd_bytes(
+                    motion.joints_local_rot,
+                    motion.joints_pos[:, session.skeleton.root_idx, :],
+                    skeleton=session.skeleton,
+                    fps=float(session.model_fps),
+                )
+
+            def _motion_to_fbx_bytes(motion, session: ClientSession) -> bytes:
+                return motion_to_fbx_bytes(
+                    motion.joints_local_rot,
+                    motion.joints_pos[:, session.skeleton.root_idx, :],
+                    skeleton=session.skeleton,
+                    fps=float(session.model_fps),
+                    standard_tpose=bool(gui_download_bvh_standard_tpose_checkbox.value),
+                )
+
             def _get_motion_export_formats(loaded_model_name: str) -> list[str]:
                 model_name_lower = (loaded_model_name or "").lower()
                 if "g1" in model_name_lower:
-                    return ["NPZ", "CSV"]
+                    return ["NPZ", "CSV", "USD"]
                 if "smplx" in model_name_lower:
-                    return ["NPZ", "AMASS NPZ"]
-                return ["NPZ", "BVH"]
+                    return ["NPZ", "AMASS NPZ", "USD"]
+                return ["NPZ", "BVH", "USD", "FBX"]
 
             def _update_format_dropdown(dropdown, loaded_model_name: str) -> None:
                 new_options = _get_motion_export_formats(loaded_model_name)
@@ -1430,12 +1468,12 @@ def create_gui(
                 _update_bvh_standard_tpose_visibility()
 
             def _update_bvh_standard_tpose_visibility() -> None:
-                gui_save_bvh_standard_tpose_checkbox.visible = (
-                    str(gui_save_motion_format_dropdown.value).upper() == "BVH"
-                )
-                gui_download_bvh_standard_tpose_checkbox.visible = (
-                    str(gui_download_format_dropdown.value).upper() == "BVH"
-                )
+                gui_save_bvh_standard_tpose_checkbox.visible = str(
+                    gui_save_motion_format_dropdown.value
+                ).upper() in {"BVH", "FBX"}
+                gui_download_bvh_standard_tpose_checkbox.visible = str(
+                    gui_download_format_dropdown.value
+                ).upper() in {"BVH", "FBX"}
 
             @gui_save_motion_format_dropdown.on_update
             def _(_event: viser.GuiEvent) -> None:
@@ -1460,7 +1498,7 @@ def create_gui(
                 if name == "":
                     return f"output{ext}"
 
-                known_exts = (".npz", ".bvh", ".csv", ".png", ".mp4")
+                known_exts = (".npz", ".bvh", ".csv", ".fbx", ".usd", ".usda", ".usdc", ".png", ".mp4")
                 lower = name.lower()
                 if lower.endswith(known_exts):
                     return os.path.splitext(name)[0] + ext
@@ -1653,6 +1691,14 @@ def create_gui(
                             standard_tpose=bool(gui_download_bvh_standard_tpose_checkbox.value),
                         )
                         mime = "text/plain"
+                    elif fmt == "USD":
+                        filename = _coerce_download_filename(raw_name, ext=".usda")
+                        payload = _motion_to_usd_bytes(motion, session)
+                        mime = "model/vnd.usda"
+                    elif fmt == "FBX":
+                        filename = _coerce_download_filename(raw_name, ext=".fbx")
+                        payload = _motion_to_fbx_bytes(motion, session)
+                        mime = "application/octet-stream"
                     elif fmt == "CSV":
                         filename = _coerce_download_filename(raw_name, ext=".csv")
                         payload = _motion_to_csv_bytes(motion, session)
