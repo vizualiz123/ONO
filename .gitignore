@@ -162,7 +162,7 @@ onelogger.err
 .nein3d_*.pid
 .tmp/
 .tools/
-/release/windows/*.exe
+/release/windows/
 
 # deploy files
 /helm-library

@@ -19,8 +19,12 @@ DEFAULT_TEXT_ENCODER_PORT = 9550
 DEFAULT_MODEL = "kimodo-soma-seed"
 
 
+def _frozen() -> bool:
+    return getattr(sys, "frozen", False)
+
+
 def _app_dir() -> Path:
-    if getattr(sys, "frozen", False):
+    if _frozen():
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parent
 
@@ -46,6 +50,10 @@ def _candidate_roots() -> list[Path]:
 
 
 def find_project_root() -> Path:
+    if _frozen():
+        # In a frozen build the kimodo package is bundled inside the exe; we use
+        # the exe directory only for log output and runtime files next to it.
+        return _app_dir()
     for root in _candidate_roots():
         if (root / "kimodo" / "demo" / "__init__.py").exists() and python_exe(root).exists():
             return root
@@ -60,8 +68,36 @@ def python_exe(root: Path) -> Path:
     return root / ".venv" / "Scripts" / "python.exe"
 
 
-def detect_gpu_backend(python: Path) -> tuple[str, str]:
-    """Probe the venv for the best available accelerator.
+def child_executable(root: Path) -> str:
+    """Pick the interpreter for spawning textencoder/studio child processes."""
+    if _frozen():
+        return sys.executable  # the bundled exe re-invokes itself with --role
+    return str(python_exe(root))
+
+
+def _run_role(role: str, role_args: list[str]) -> int:
+    """Direct in-process dispatch for child roles when launched with --role."""
+    if role == "textencoder":
+        # Replicate `python -m kimodo.scripts.run_text_encoder_server` semantics.
+        sys.argv = ["kimodo.scripts.run_text_encoder_server", *role_args]
+        from kimodo.scripts.run_text_encoder_server import main as te_main
+
+        te_main()
+        return 0
+
+    if role == "studio":
+        # Replicate `python -m kimodo.demo`. Pass through extra args (e.g. --model X).
+        sys.argv = ["kimodo.demo", *role_args]
+        from kimodo.demo import main as demo_main
+
+        demo_main()
+        return 0
+
+    raise SystemExit(f"Unknown --role: {role}")
+
+
+def detect_gpu_backend(child_exec: str) -> tuple[str, str]:
+    """Probe the venv (or the frozen exe) for the best available accelerator.
 
     Returns (backend, label). Backend is one of: cuda, directml, xpu, mps, cpu.
     """
@@ -69,7 +105,7 @@ def detect_gpu_backend(python: Path) -> tuple[str, str]:
     if override in {"cuda", "directml", "xpu", "mps", "cpu"}:
         return override, f"override:{override}"
 
-    probe = (
+    probe_code = (
         "import json, sys\n"
         "result = {'backend': 'cpu', 'label': 'cpu'}\n"
         "try:\n"
@@ -93,9 +129,33 @@ def detect_gpu_backend(python: Path) -> tuple[str, str]:
         "sys.stdout.write(json.dumps(result))\n"
     )
 
+    if _frozen():
+        # When frozen, the child exe doesn't accept arbitrary -c. Probe in-process.
+        try:
+            import torch  # noqa: E402
+
+            if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+                return "cuda", torch.cuda.get_device_name(0)
+            try:
+                import torch_directml  # type: ignore
+
+                if torch_directml.is_available():
+                    idx = torch_directml.default_device()
+                    return "directml", torch_directml.device_name(idx)
+            except Exception:
+                pass
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                return "xpu", torch.xpu.get_device_name(0)
+            mps = getattr(torch.backends, "mps", None)
+            if mps is not None and mps.is_available():
+                return "mps", "Apple MPS"
+            return "cpu", "cpu"
+        except Exception as exc:
+            return "cpu", f"cpu (probe error: {exc})"
+
     try:
         completed = subprocess.run(
-            [str(python), "-c", probe],
+            [child_exec, "-c", probe_code],
             capture_output=True,
             text=True,
             timeout=30,
@@ -234,7 +294,7 @@ def stop_processes(processes: list[subprocess.Popen]) -> None:
             process.kill()
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args() -> tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser(description="Start the Nein3D Windows studio.")
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--ui-port", type=int, default=DEFAULT_UI_PORT)
@@ -249,21 +309,33 @@ def parse_args() -> argparse.Namespace:
         default="auto",
         help="Force a specific GPU backend. 'auto' picks the best available (CUDA -> DirectML -> XPU -> MPS -> CPU).",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--role",
+        choices=["textencoder", "studio"],
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    return parser.parse_known_args()
 
 
 def main() -> int:
-    args = parse_args()
+    args, role_args = parse_args()
+
+    # Child-role dispatch (used by the bundled exe to host textencoder / studio).
+    if args.role:
+        return _run_role(args.role, role_args)
+
     started: list[subprocess.Popen] = []
     try:
         root = find_project_root()
-        py = python_exe(root)
+        child_exec = child_executable(root)
         print(f"=== {APP_NAME} Launcher ===")
         print(f"Project: {root}")
-        print(f"Python:  {py}")
+        print(f"Runtime: {child_exec}")
+        print(f"Frozen:  {_frozen()}")
 
         if args.gpu_backend == "auto":
-            backend, label = detect_gpu_backend(py)
+            backend, label = detect_gpu_backend(child_exec)
         else:
             backend, label = args.gpu_backend, f"forced:{args.gpu_backend}"
         print(f"GPU:     {backend} ({label})")
@@ -276,13 +348,20 @@ def main() -> int:
             backend,
         )
 
+        if _frozen():
+            te_args = [child_exec, "--role", "textencoder"]
+            studio_args = [child_exec, "--role", "studio", "--model", args.model]
+        else:
+            te_args = [child_exec, "-m", "kimodo.scripts.run_text_encoder_server"]
+            studio_args = [child_exec, "-m", "kimodo.demo", "--model", args.model]
+
         if port_open(args.host, args.text_encoder_port):
             print(f"[OK] Text encoder already running on {args.host}:{args.text_encoder_port}")
         else:
             encoder = start_process(
                 root=root,
                 name="text encoder",
-                args=[str(py), "-m", "kimodo.scripts.run_text_encoder_server"],
+                args=te_args,
                 env=text_encoder_env,
                 log_stem="textencoder",
             )
@@ -291,7 +370,7 @@ def main() -> int:
                 host=args.host,
                 port=args.text_encoder_port,
                 name="Text encoder",
-                timeout_seconds=360,
+                timeout_seconds=600,
                 process=encoder,
             )
 
@@ -301,7 +380,7 @@ def main() -> int:
             studio = start_process(
                 root=root,
                 name="studio",
-                args=[str(py), "-m", "kimodo.demo", "--model", args.model],
+                args=studio_args,
                 env=studio_env,
                 log_stem="studio",
             )
@@ -310,7 +389,7 @@ def main() -> int:
                 host=args.host,
                 port=args.ui_port,
                 name="Studio",
-                timeout_seconds=420,
+                timeout_seconds=600,
                 process=studio,
             )
 
@@ -336,7 +415,7 @@ def main() -> int:
     except Exception as exc:
         print(f"[ERROR] {exc}")
         stop_processes(started)
-        if getattr(sys, "frozen", False):
+        if _frozen() and not getattr(args, "detach", False) and sys.stdin.isatty():
             input("Press Enter to close...")
         return 1
 
