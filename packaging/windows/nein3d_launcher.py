@@ -412,13 +412,19 @@ def build_env(
         "LOCAL_CACHE": "True",
         "KIMODO_APP_TITLE": title,
         "KIMODO_PANEL_LABEL": title,
+        # Desktop-only shell flags. Browser/web launches do not set these.
+        "NEIN3D_DESKTOP_UI": "true",
+        "NEIN3D_WINDOWS_APP": "true",
         "KIMODO_DARK_MODE": "true",
         "KIMODO_AGGRESSIVE_GPU_CLEANUP": "true",
         "KIMODO_TEXT_ENCODER_CPU": "true",
         "KIMODO_GPU_BACKEND": backend,
+        "CUDA_MODULE_LOADING": os.environ.get("CUDA_MODULE_LOADING", "LAZY"),
+        "GRADIO_ANALYTICS_ENABLED": os.environ.get("GRADIO_ANALYTICS_ENABLED", "False"),
+        "TOKENIZERS_PARALLELISM": os.environ.get("TOKENIZERS_PARALLELISM", "false"),
         "PYTORCH_CUDA_ALLOC_CONF": os.environ.get(
             "PYTORCH_CUDA_ALLOC_CONF",
-            "max_split_size_mb:128",
+            "max_split_size_mb:128,garbage_collection_threshold:0.8",
         ),
     }
     return text_encoder_env, studio_env

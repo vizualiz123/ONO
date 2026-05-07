@@ -28,6 +28,7 @@ import viser
 from viser._timeline_api import PROMPT_COLORS
 
 from . import generation
+from .desktop_layout import apply_desktop_layout
 from .config import (
     DEFAULT_CUR_DURATION,
     DEFAULT_DARK_MODE,
@@ -3580,6 +3581,7 @@ def create_gui(
         gui_dark_mode_checkbox=gui_dark_mode_checkbox,
         gui_use_soma_layer_checkbox=gui_use_soma_layer_checkbox,
     )
+    apply_desktop_layout(client, model_name=model_name, timeline_tracks=timeline_tracks)
     return (
         gui_elements,
         timeline_tracks,
