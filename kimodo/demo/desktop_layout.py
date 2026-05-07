@@ -6,7 +6,6 @@ from __future__ import annotations
 import json
 import os
 import textwrap
-from collections.abc import Mapping
 
 import viser
 
@@ -23,53 +22,22 @@ def desktop_ui_enabled() -> bool:
     return os.environ.get("NEIN3D_DESKTOP_UI", "").strip().lower() in _TRUE_VALUES
 
 
-def _track_names(timeline_tracks: Mapping[object, Mapping[str, object]]) -> list[str]:
-    names: list[str] = []
-    for track in timeline_tracks.values():
-        name = track.get("name")
-        if isinstance(name, str) and name:
-            names.append(name)
-    return names
-
-
-def _object_tree(model_name: str, timeline_tracks: Mapping[object, Mapping[str, object]]) -> list[dict[str, object]]:
-    return [
-        {
-            "label": "Сцена",
-            "children": ["Камера", "Сетка пола", "Персонаж", "Скелет", "Таймлайн"],
-        },
-        {
-            "label": "Движение",
-            "children": ["Prompt track", *_track_names(timeline_tracks)],
-        },
-        {
-            "label": "Модель",
-            "children": [model_name, "SOMA / G1 skeleton", "Локальный кеш"],
-        },
-        {
-            "label": "3D ассеты",
-            "children": ["USD loader", "UE-style Manny", "UE-style Quinn", "Greybox тест"],
-        },
-        {
-            "label": "Windows runtime",
-            "children": ["Отдельное окно", "GPU cleanup", "CPU text encoder"],
-        },
-    ]
-
-
-def _desktop_script(tree: list[dict[str, object]]) -> str:
+def _desktop_script(tree: list[dict[str, object]], help_markdown: str) -> str:
     script = textwrap.dedent(
         """
         (() => {
           const objectTree = __OBJECT_TREE__;
           const treeTitle = __TREE_TITLE__;
           const panelHints = __PANEL_HINTS__;
+          const helpMarkdown = __HELP_MARKDOWN__;
           const state = window.__nein3dDesktopLayout || {};
           window.__nein3dDesktopLayout = state;
           state.objectTree = objectTree;
+          state.helpMarkdown = helpMarkdown || state.helpMarkdown || "";
 
           const STYLE_ID = "nein3d-desktop-layout-style";
           const DOCK_ID = "nein3d-object-tree-dock";
+          const HELP_ID = "nein3d-help-modal";
           const PANEL_ATTR = "data-nein3d-desktop-panel";
           const DEFAULT_TIMELINE_HEIGHT = 188;
 
@@ -171,11 +139,82 @@ def _desktop_script(tree: list[dict[str, object]]) -> str:
                 padding: 0;
               }
               #${DOCK_ID} li {
+                display: flex;
+                align-items: center;
+                gap: 6px;
                 margin: 3px 0;
                 color: rgba(244, 247, 251, 0.78);
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
+              }
+              #${DOCK_ID} li.is-hidden {
+                color: rgba(244, 247, 251, 0.42);
+              }
+              #${DOCK_ID} .nein3d-object-kind {
+                flex: 0 0 auto;
+                width: 16px;
+                color: #49d7f2;
+                text-align: center;
+                opacity: 0.9;
+              }
+              #${DOCK_ID} .nein3d-object-label {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+              }
+              #${HELP_ID} {
+                position: fixed;
+                inset: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 30;
+                background: rgba(0, 0, 0, 0.52);
+                padding: 26px;
+                box-sizing: border-box;
+              }
+              #${HELP_ID}[hidden] {
+                display: none;
+              }
+              #${HELP_ID} .nein3d-help-window {
+                width: min(760px, calc(100vw - 52px));
+                max-height: min(760px, calc(100vh - 52px));
+                overflow: auto;
+                color: #f5f7fb;
+                background: rgba(28, 29, 32, 0.94);
+                border: 1px solid rgba(255, 255, 255, 0.16);
+                box-shadow: 0 24px 68px rgba(0, 0, 0, 0.52);
+                backdrop-filter: blur(18px) saturate(132%);
+                border-radius: 8px;
+              }
+              #${HELP_ID} .nein3d-help-head {
+                position: sticky;
+                top: 0;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                padding: 12px 14px;
+                background: rgba(28, 29, 32, 0.98);
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+              }
+              #${HELP_ID} .nein3d-help-head strong {
+                font-size: 14px;
+              }
+              #${HELP_ID} .nein3d-help-close {
+                width: 28px;
+                height: 28px;
+                border: 0;
+                border-radius: 6px;
+                color: #f5f7fb;
+                background: rgba(255, 255, 255, 0.08);
+                cursor: pointer;
+              }
+              #${HELP_ID} .nein3d-help-body {
+                padding: 16px 18px 20px;
+                font: 13px/1.55 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                white-space: pre-wrap;
               }
               body.nein3d-desktop-ui [${PANEL_ATTR}="true"] {
                 position: fixed !important;
@@ -213,6 +252,33 @@ def _desktop_script(tree: list[dict[str, object]]) -> str:
             `;
           }
 
+          function kindIcon(kind) {
+            return ({
+              camera: "C",
+              light: "L",
+              grid: "#",
+              mesh: "M",
+              skeleton: "S",
+              usd: "U",
+              marker: "+",
+              group: "G",
+            })[kind] || "O";
+          }
+
+          function objectItemHtml(item) {
+            const data = typeof item === "string" ? { label: item } : (item || {});
+            const label = data.label || data.path || "Object";
+            const path = data.path || label;
+            const kind = data.kind || "object";
+            const hidden = data.visible === false ? " is-hidden" : "";
+            return `
+              <li class="${hidden}" title="${escapeHtml(path)}">
+                <span class="nein3d-object-kind">${escapeHtml(kindIcon(kind))}</span>
+                <span class="nein3d-object-label">${escapeHtml(label)}</span>
+              </li>
+            `;
+          }
+
           function renderDock() {
             let dock = document.getElementById(DOCK_ID);
             if (!dock) {
@@ -221,8 +287,10 @@ def _desktop_script(tree: list[dict[str, object]]) -> str:
               document.body.appendChild(dock);
             }
 
-            const groups = (state.objectTree || []).map((group) => {
-              const children = (group.children || []).map((child) => `<li>${escapeHtml(child)}</li>`).join("");
+            const groups = (state.objectTree || []).filter((group) => {
+              return group && Array.isArray(group.children) && group.children.length > 0;
+            }).map((group) => {
+              const children = (group.children || []).map(objectItemHtml).join("");
               return `<details open><summary>${escapeHtml(group.label)}</summary><ul>${children}</ul></details>`;
             }).join("");
 
@@ -231,9 +299,41 @@ def _desktop_script(tree: list[dict[str, object]]) -> str:
                 <span>${escapeHtml(treeTitle)}</span>
                 <span class="nein3d-tree-dot" aria-hidden="true"></span>
               </div>
-              ${groups}
+              ${groups || '<div class="nein3d-object-label">Scene is empty</div>'}
             `;
           }
+
+          function renderHelpModal() {
+            let modal = document.getElementById(HELP_ID);
+            if (!modal) {
+              modal = document.createElement("div");
+              modal.id = HELP_ID;
+              modal.hidden = true;
+              document.body.appendChild(modal);
+            }
+            modal.innerHTML = `
+              <section class="nein3d-help-window" role="dialog" aria-modal="true">
+                <div class="nein3d-help-head">
+                  <strong>Справка</strong>
+                  <button class="nein3d-help-close" type="button" aria-label="Close">X</button>
+                </div>
+                <div class="nein3d-help-body">${escapeHtml(state.helpMarkdown || "")}</div>
+              </section>
+            `;
+            modal.querySelector(".nein3d-help-close").addEventListener("click", () => {
+              modal.hidden = true;
+            });
+            modal.onclick = (event) => {
+              if (event.target === modal) modal.hidden = true;
+            };
+          }
+
+          window.__nein3dShowHelp = () => {
+            renderHelpModal();
+            const modal = document.getElementById(HELP_ID);
+            if (modal) modal.hidden = false;
+            return true;
+          };
 
           function measureTimelineHeight() {
             const nodes = Array.from(document.querySelectorAll("body *"));
@@ -315,12 +415,19 @@ def _desktop_script(tree: list[dict[str, object]]) -> str:
 
           installStyle();
           renderDock();
+          renderHelpModal();
           scheduleLayout();
 
           if (!state.installed) {
             state.installed = true;
             window.addEventListener("resize", scheduleLayout);
             window.addEventListener("orientationchange", scheduleLayout);
+            window.addEventListener("keydown", (event) => {
+              if (event.key === "Escape") {
+                const modal = document.getElementById(HELP_ID);
+                if (modal) modal.hidden = true;
+              }
+            });
             const observer = new MutationObserver(scheduleLayout);
             observer.observe(document.body, {
               attributes: true,
@@ -336,6 +443,7 @@ def _desktop_script(tree: list[dict[str, object]]) -> str:
     return (
         script.replace("__OBJECT_TREE__", json.dumps(tree, ensure_ascii=True))
         .replace("__TREE_TITLE__", json.dumps("Дерево объектов", ensure_ascii=True))
+        .replace("__HELP_MARKDOWN__", json.dumps(help_markdown, ensure_ascii=True))
         .replace(
             "__PANEL_HINTS__",
             json.dumps(
@@ -349,8 +457,8 @@ def _desktop_script(tree: list[dict[str, object]]) -> str:
 def apply_desktop_layout(
     client: viser.ClientHandle,
     *,
-    model_name: str,
-    timeline_tracks: Mapping[object, Mapping[str, object]],
+    object_tree: list[dict[str, object]],
+    help_markdown: str = "",
 ) -> None:
     if not desktop_ui_enabled():
         return
@@ -360,8 +468,17 @@ def apply_desktop_layout(
 
         client.gui._websock_interface.queue_message(
             _viser_messages.RunJavascriptMessage(
-                source=_desktop_script(_object_tree(model_name, timeline_tracks)),
+                source=_desktop_script(object_tree, help_markdown),
             )
         )
     except Exception as exc:
         print(f"[WARN] Failed to apply Nein3D desktop layout: {exc}")
+
+
+def update_desktop_object_tree(
+    client: viser.ClientHandle,
+    *,
+    object_tree: list[dict[str, object]],
+    help_markdown: str = "",
+) -> None:
+    apply_desktop_layout(client, object_tree=object_tree, help_markdown=help_markdown)

@@ -43,6 +43,7 @@ from .config import (
     DEFAULT_MODEL,
     DEFAULT_PLAYBACK_SPEED,
     DEFAULT_PROMPT,
+    DEMO_UI_INSTRUCTIONS_TAB_MD,
     DEMO_UI_QUICK_START_MODAL_MD,
     EXAMPLES_ROOT_DIR,
     HF_MODE,
@@ -57,6 +58,7 @@ from .config import (
     SERVER_PORT,
     STUDIO_BRAND_COLOR,
 )
+from .desktop_layout import desktop_ui_enabled, update_desktop_object_tree
 from .embedding_cache import CachedTextEncoder
 from .queue_manager import QueueManager, UserQueue
 from .state import ClientSession, ModelBundle
@@ -331,6 +333,108 @@ class Demo:
             ),
         }
 
+    def _desktop_handle_item(
+        self,
+        handle: object,
+        *,
+        label: str | None = None,
+        kind: str = "object",
+    ) -> dict[str, object]:
+        name = getattr(handle, "name", "") or ""
+        item: dict[str, object] = {
+            "label": label or str(name).strip("/") or "Object",
+            "kind": kind,
+        }
+        if name:
+            item["path"] = str(name)
+        visible = getattr(handle, "visible", None)
+        if visible is not None:
+            item["visible"] = bool(visible)
+        return item
+
+    def _desktop_add_group(
+        self,
+        groups: list[dict[str, object]],
+        label: str,
+        children: list[dict[str, object]],
+    ) -> None:
+        if children:
+            groups.append({"label": label, "children": children})
+
+    def desktop_scene_tree(self, client_id: int) -> list[dict[str, object]]:
+        """Build the left object tree from actual scene handles only."""
+        groups: list[dict[str, object]] = []
+
+        scene_children: list[dict[str, object]] = [
+            {"label": "Camera", "kind": "camera", "path": f"/client/{client_id}/camera"},
+        ]
+
+        grid_handle = self.grid_handles.get(client_id)
+        if grid_handle is not None:
+            scene_children.append(self._desktop_handle_item(grid_handle, label="Grid", kind="grid"))
+
+        marker = self.start_direction_markers.get(client_id)
+        if marker is not None:
+            marker_children = []
+            for attr in ("sphere", "annulus", "arrow_base", "arrow_head"):
+                handle = getattr(marker, attr, None)
+                if handle is not None:
+                    marker_children.append(self._desktop_handle_item(handle, kind="marker"))
+            scene_children.extend(marker_children)
+
+        self._desktop_add_group(groups, "Scene", scene_children)
+
+        session = self.client_sessions.get(client_id)
+        if session is not None:
+            for character_name, motion in session.motions.items():
+                character = motion.character
+                character_children: list[dict[str, object]] = []
+                if character.skinned_mesh is not None:
+                    character_children.append(
+                        self._desktop_handle_item(character.skinned_mesh, label="Skinned mesh", kind="mesh")
+                    )
+                if character.g1_mesh_rig is not None:
+                    for handle in character.g1_mesh_rig.mesh_handles:
+                        character_children.append(self._desktop_handle_item(handle, kind="mesh"))
+                if character.skeleton_mesh is not None:
+                    character_children.append(
+                        self._desktop_handle_item(
+                            character.skeleton_mesh.joints_batched_mesh,
+                            label="Skeleton joints",
+                            kind="skeleton",
+                        )
+                    )
+                    character_children.append(
+                        self._desktop_handle_item(
+                            character.skeleton_mesh.bones_batched_mesh,
+                            label="Skeleton bones",
+                            kind="skeleton",
+                        )
+                    )
+                self._desktop_add_group(groups, character_name, character_children)
+
+        usd_children = [
+            self._desktop_handle_item(handle, kind="usd")
+            for handle in self.usd_mesh_handles.get(client_id, [])
+        ]
+        self._desktop_add_group(groups, "USD 3D", usd_children)
+
+        return groups
+
+    def refresh_desktop_scene_tree(self, client_id: int, client: viser.ClientHandle | None = None) -> None:
+        if not desktop_ui_enabled():
+            return
+        if client is None:
+            session = self.client_sessions.get(client_id)
+            if session is None:
+                return
+            client = session.client
+        update_desktop_object_tree(
+            client,
+            object_tree=self.desktop_scene_tree(client_id),
+            help_markdown=DEMO_UI_INSTRUCTIONS_TAB_MD,
+        )
+
     def set_timeline_defaults(self, timeline, model_fps: float) -> None:
         default_frame_count = max(1, int(round(DEFAULT_CUR_DURATION * model_fps)))
         timeline.set_defaults(
@@ -417,6 +521,7 @@ class Demo:
                     session.client.scene.remove_by_name(name)
                 except Exception:
                     pass
+        self.refresh_desktop_scene_tree(client_id)
         return len(handles)
 
     def load_usd_asset(
@@ -446,6 +551,7 @@ class Demo:
             )
             handles.append(handle)
         self.usd_mesh_handles[client_id] = handles
+        self.refresh_desktop_scene_tree(client_id, client)
         return len(handles)
 
     def _setup_demo_for_client(self, client: viser.ClientHandle) -> None:
@@ -648,12 +754,14 @@ class Demo:
         def _set_visibility():
             new_motion.character.set_skinned_mesh_visibility(session.gui_elements.gui_viz_skinned_mesh_checkbox.value)
             new_motion.character.set_skeleton_visibility(session.gui_elements.gui_viz_skeleton_checkbox.value)
+            self.refresh_desktop_scene_tree(client_id)
 
         timer = threading.Timer(
             0.2,  # 0.2s delay
             _set_visibility,
         )
         timer.start()
+        self.refresh_desktop_scene_tree(client_id)
 
     def clear_motions(self, client_id: int) -> None:
         if not self.client_active(client_id):
@@ -662,6 +770,7 @@ class Demo:
         for motion in list(session.motions.values()):
             motion.clear()
         session.motions.clear()
+        self.refresh_desktop_scene_tree(client_id)
 
     def compute_model_constraints_lst(
         self,

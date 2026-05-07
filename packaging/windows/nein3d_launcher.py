@@ -293,6 +293,21 @@ def _make_window_menu(url: str, root: Path, window_ref: dict[str, object]):
         if window is not None:
             window.destroy()
 
+    def show_help() -> None:
+        window = current_window()
+        if window is None:
+            webbrowser.open(url)
+            return
+        try:
+            shown = window.evaluate_js(
+                "Boolean(window.__nein3dShowHelp && window.__nein3dShowHelp())"
+            )
+            if not shown:
+                webbrowser.open(url)
+        except Exception as exc:
+            print(f"[WARN] Could not open in-app help: {exc}")
+            webbrowser.open(url)
+
     return [
         Menu(
             "Файл",
@@ -320,7 +335,13 @@ def _make_window_menu(url: str, root: Path, window_ref: dict[str, object]):
                 MenuAction("Поверх окон", toggle_on_top),
             ],
         ),
-        Menu("Помощь", [MenuAction("Открыть адрес студии", lambda: webbrowser.open(url))]),
+        Menu(
+            "Помощь",
+            [
+                MenuAction("Справка", show_help),
+                MenuAction("Открыть адрес студии", lambda: webbrowser.open(url)),
+            ],
+        ),
     ]
 
 

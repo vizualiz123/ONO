@@ -28,7 +28,7 @@ import viser
 from viser._timeline_api import PROMPT_COLORS
 
 from . import generation
-from .desktop_layout import apply_desktop_layout
+from .desktop_layout import apply_desktop_layout, desktop_ui_enabled
 from .config import (
     DEFAULT_CUR_DURATION,
     DEFAULT_DARK_MODE,
@@ -3474,6 +3474,7 @@ def create_gui(
             if not demo.client_active(client_id):
                 return
             demo.set_start_direction_visible(client_id, gui_show_starting_direction_checkbox.value)
+            demo.refresh_desktop_scene_tree(client_id)
 
         @gui_viz_skeleton_checkbox.on_update
         def _(_) -> None:
@@ -3485,6 +3486,7 @@ def create_gui(
                 gui_viz_foot_contacts_checkbox.value = False
             for motion in session.motions.values():
                 motion.character.set_skeleton_visibility(gui_viz_skeleton_checkbox.value)
+            demo.refresh_desktop_scene_tree(client_id)
 
         @gui_viz_foot_contacts_checkbox.on_update
         def _(_) -> None:
@@ -3503,6 +3505,7 @@ def create_gui(
             session = demo.client_sessions[client_id]
             for motion in session.motions.values():
                 motion.character.set_skinned_mesh_visibility(gui_viz_skinned_mesh_checkbox.value)
+            demo.refresh_desktop_scene_tree(client_id)
 
         @gui_viz_skinned_mesh_opacity_slider.on_update
         def _(_) -> None:
@@ -3522,8 +3525,9 @@ def create_gui(
 
     # Instructions tab
     #
-    with tab_group.add_tab("Справка", viser.Icon.INFO_CIRCLE):
-        client.gui.add_markdown(DEMO_UI_INSTRUCTIONS_TAB_MD)
+    if not desktop_ui_enabled():
+        with tab_group.add_tab("Справка", viser.Icon.INFO_CIRCLE):
+            client.gui.add_markdown(DEMO_UI_INSTRUCTIONS_TAB_MD)
 
     #
     # Keyboard events
@@ -3581,7 +3585,11 @@ def create_gui(
         gui_dark_mode_checkbox=gui_dark_mode_checkbox,
         gui_use_soma_layer_checkbox=gui_use_soma_layer_checkbox,
     )
-    apply_desktop_layout(client, model_name=model_name, timeline_tracks=timeline_tracks)
+    apply_desktop_layout(
+        client,
+        object_tree=demo.desktop_scene_tree(client_id),
+        help_markdown=DEMO_UI_INSTRUCTIONS_TAB_MD,
+    )
     return (
         gui_elements,
         timeline_tracks,
