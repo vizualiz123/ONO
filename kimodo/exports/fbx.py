@@ -22,6 +22,35 @@ import torch
 from kimodo.exports.bvh import save_motion_bvh
 
 
+def _default_windows_blender_candidates() -> list[str]:
+    if os.name != "nt":
+        return []
+
+    roots: list[Path] = []
+    for env_name in ("BLENDER_HOME", "ProgramFiles", "ProgramW6432", "ProgramFiles(x86)", "LOCALAPPDATA"):
+        env_value = os.environ.get(env_name)
+        if not env_value:
+            continue
+        env_path = Path(env_value)
+        if env_name == "BLENDER_HOME":
+            roots.extend([env_path, env_path / "blender.exe"])
+        elif env_name == "LOCALAPPDATA":
+            roots.append(env_path / "Programs" / "Blender Foundation")
+        else:
+            roots.append(env_path / "Blender Foundation")
+
+    candidates: list[str] = []
+    for root in roots:
+        if root.name.lower() == "blender.exe":
+            candidates.append(str(root))
+            continue
+        if not root.exists():
+            continue
+        candidates.extend(str(path) for path in sorted(root.glob("Blender */blender.exe"), reverse=True))
+        candidates.extend(str(path) for path in sorted(root.glob("*/blender.exe"), reverse=True))
+    return candidates
+
+
 def _resolve_bvh_skeleton(local_rot_mats: torch.Tensor, skeleton):
     if getattr(skeleton, "name", "") != "somaskel30":
         return skeleton
@@ -41,10 +70,19 @@ def _find_blender(blender_path: str | None = None) -> str:
     found = shutil.which("blender")
     if found:
         candidates.append(found)
+    candidates.extend(_default_windows_blender_candidates())
 
+    seen = set()
     for candidate in candidates:
-        if candidate and Path(candidate).exists():
-            return str(Path(candidate))
+        if not candidate:
+            continue
+        candidate_path = Path(candidate)
+        normalized = str(candidate_path).lower()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        if candidate_path.exists():
+            return str(candidate_path)
     raise RuntimeError(
         "FBX export requires Blender in PATH or BLENDER_PATH. Install Blender, "
         "then run export again. USD export works without Blender."
