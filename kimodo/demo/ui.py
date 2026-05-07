@@ -19,6 +19,7 @@ from kimodo.exports.motion_io import (
 )
 from kimodo.exports.usd import motion_to_usd_bytes, save_motion_usd
 from kimodo.model.registry import kimodo_short_key_for_skeleton_dataset, registry_skeleton_for_joint_count
+from kimodo.safety.validate import format_validation_report, validate_motion
 from kimodo.tools import to_torch
 from kimodo.viz import viser_utils
 from kimodo.viz.viser_utils import GuiElements
@@ -775,6 +776,11 @@ def create_gui(
                     hint="Сохранить текущее движение.",
                     icon=viser.Icon.DEVICE_FLOPPY,
                 )
+                gui_validate_motion_button = client.gui.add_button(
+                    "Проверить движение",
+                    hint="Проверить motion safety: NaN/Inf, резкие повороты и скачки root.",
+                    icon=viser.Icon.TARGET_ARROW,
+                )
                 gui_load_motion_path_text = client.gui.add_text(
                     "Откуда загрузить",
                     initial_value="output.npz",
@@ -865,6 +871,38 @@ def create_gui(
                     motion_data["foot_contacts"] = foot_contacts
                 return motion_data
 
+            def _validate_primary_motion(session: ClientSession, motion=None):
+                if motion is None:
+                    motion = _get_primary_motion(session)
+                root_positions = motion.joints_pos[:, session.skeleton.root_idx, :]
+                return validate_motion(
+                    motion.joints_local_rot,
+                    root_positions,
+                    session.skeleton,
+                    float(session.model_fps),
+                )
+
+            def _notify_validation_report(event_client: viser.ClientHandle, report, *, title: str) -> None:
+                if report.has_blocking_errors:
+                    color = "red"
+                elif report.has_warnings:
+                    color = "blue"
+                else:
+                    color = "green"
+                event_client.add_notification(
+                    title=title,
+                    body=format_validation_report(report),
+                    auto_close_seconds=12.0,
+                    color=color,
+                )
+
+            def _ensure_motion_export_safe(event_client: viser.ClientHandle, session: ClientSession, motion) -> None:
+                report = _validate_primary_motion(session, motion)
+                if report.has_blocking_errors:
+                    raise ValueError("Motion safety validation failed:\n" + format_validation_report(report))
+                if report.has_warnings:
+                    _notify_validation_report(event_client, report, title="Motion safety warnings")
+
             def _coerce_save_path(raw_path: str, *, ext: str) -> str:
                 """Ensure the save path ends with the correct extension for the chosen format."""
                 name = (raw_path or "").strip()
@@ -888,6 +926,7 @@ def create_gui(
             def save_motion(client, save_path, fmt):
                 session = demo.client_sessions[client.client_id]
                 motion = _get_primary_motion(session)
+                _ensure_motion_export_safe(client, session, motion)
                 motion_data = _motion_to_numpy_dict(motion)
 
                 if fmt == "BVH":
@@ -1744,6 +1783,7 @@ def create_gui(
                     return
                 motion = _get_primary_motion(session)
                 try:
+                    _ensure_motion_export_safe(event_client, session, motion)
                     fmt = str(gui_download_format_dropdown.value).upper()
                     raw_name = str(gui_download_name_text.value)
 
@@ -1798,6 +1838,26 @@ def create_gui(
                     traceback.print_exc()
                     event_client.add_notification(
                         title="Failed to download motion!",
+                        body=str(e),
+                        auto_close_seconds=10.0,
+                        color="red",
+                    )
+
+            @gui_validate_motion_button.on_click
+            def _(event: viser.GuiEvent) -> None:
+                event_client = event.client
+                session = get_active_session(event_client)
+                if session is None:
+                    return
+                try:
+                    report = _validate_primary_motion(session)
+                    _notify_validation_report(event_client, report, title="Motion safety report")
+                except Exception as e:
+                    import traceback
+
+                    traceback.print_exc()
+                    event_client.add_notification(
+                        title="Motion safety failed",
                         body=str(e),
                         auto_close_seconds=10.0,
                         color="red",

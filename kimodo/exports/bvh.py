@@ -15,6 +15,7 @@ import numpy as np
 import torch
 
 from kimodo.geometry import matrix_to_quaternion as _matrix_to_quaternion
+from kimodo.safety.continuity import canonicalize_quaternions_timeline
 
 
 def _strip_end_site_blocks(bvh_text: str) -> str:
@@ -109,7 +110,8 @@ def motion_to_bvh(
 
     local_rot_mats = _coerce_batch("local_rot_mats", local_rot_mats, expected_ndim=4)
     T, J = local_rot_mats.shape[:2]
-    q_wxyz = _matrix_to_quaternion(local_rot_mats).detach().cpu().numpy()  # [T, J, 4]
+    q_wxyz = canonicalize_quaternions_timeline(_matrix_to_quaternion(local_rot_mats), time_dim=0)
+    q_wxyz = q_wxyz.detach().cpu().numpy()  # [T, J, 4]
 
     root_xyz = _coerce_batch("root_positions", root_positions, expected_ndim=2)
     root_xyz = root_xyz.cpu().numpy()  # [T, 3]

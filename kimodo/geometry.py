@@ -36,9 +36,9 @@ def cont6d_to_matrix(cont6d: torch.Tensor) -> torch.Tensor:
     x_raw = cont6d[..., 0:3]
     y_raw = cont6d[..., 3:6]
 
-    x = x_raw / torch.norm(x_raw, dim=-1, keepdim=True)
+    x = x_raw / torch.norm(x_raw, dim=-1, keepdim=True).clamp(min=1e-8)
     z = torch.cross(x, y_raw, dim=-1)
-    z = z / torch.norm(z, dim=-1, keepdim=True)
+    z = z / torch.norm(z, dim=-1, keepdim=True).clamp(min=1e-8)
 
     y = torch.cross(z, x, dim=-1)
 
@@ -180,11 +180,12 @@ def matrix_to_quaternion(matrix: torch.Tensor) -> torch.Tensor:
     flr = torch.tensor(0.1).to(dtype=q_abs.dtype, device=q_abs.device)
     quat_candidates = quat_by_rijk / (2.0 * q_abs[..., None].max(flr))
 
-    return (
+    quat = (
         (F.one_hot(q_abs.argmax(dim=-1), num_classes=4)[..., None] * quat_candidates)
         .sum(dim=-2)
         .reshape(batch_dim + (4,))
     )
+    return torch.where(quat[..., 0:1] < 0, -quat, quat)
 
 
 def quaternion_to_matrix(quaternions: torch.Tensor) -> torch.Tensor:

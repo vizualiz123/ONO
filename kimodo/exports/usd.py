@@ -16,6 +16,7 @@ from typing import Union
 import torch
 
 from kimodo.geometry import matrix_to_quaternion
+from kimodo.safety.continuity import canonicalize_quaternions_timeline
 
 
 def _require_usd():
@@ -116,7 +117,7 @@ def _build_usd_stage(
     neutral = skeleton.neutral_joints.detach().cpu()
     joint_names = list(skeleton.bone_order_names)
     root_idx = int(skeleton.root_idx)
-    q_wxyz = matrix_to_quaternion(local_rot_mats).detach().cpu()
+    q_wxyz = canonicalize_quaternions_timeline(matrix_to_quaternion(local_rot_mats), time_dim=0).detach().cpu()
 
     paths: list[str] = [""] * J
     ops = []

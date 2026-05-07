@@ -15,6 +15,7 @@ from kimodo.geometry import matrix_to_quaternion, quaternion_to_matrix
 from kimodo.motion_rep.feature_utils import compute_heading_angle, compute_vel_xyz
 from kimodo.motion_rep.feet import foot_detect_from_pos_and_vel
 from kimodo.motion_rep.smooth_root import get_smooth_root_pos
+from kimodo.safety.continuity import slerp_blend
 from kimodo.skeleton import SkeletonBase
 from kimodo.skeleton.registry import build_skeleton
 from kimodo.tools import to_numpy
@@ -26,17 +27,7 @@ KIMODO_CONVERT_TARGET_FPS = 30.0
 def _quaternion_slerp(q0: torch.Tensor, q1: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
     """Spherical linear interpolation; ``q0``, ``q1`` (..., 4) wxyz; ``t`` broadcastable to (...,
     1)."""
-    if t.dim() < q0.dim():
-        t = t.unsqueeze(-1)
-    dot = (q0 * q1).sum(dim=-1, keepdim=True)
-    q1 = torch.where(dot < 0, -q1, q1)
-    dot = torch.abs(dot).clamp(-1.0, 1.0)
-    theta_0 = torch.acos(dot)
-    sin_theta = torch.sin(theta_0)
-    s0 = torch.sin((1.0 - t) * theta_0) / sin_theta.clamp(min=1e-8)
-    s1 = torch.sin(t * theta_0) / sin_theta.clamp(min=1e-8)
-    q = s0 * q0 + s1 * q1
-    return q / torch.linalg.norm(q, dim=-1, keepdim=True).clamp(min=1e-8)
+    return slerp_blend(q0, q1, t)
 
 
 def resample_motion_dict_to_kimodo_fps(
