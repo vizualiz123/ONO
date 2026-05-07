@@ -6,6 +6,7 @@ import os
 import threading
 from typing import Optional
 
+from kimodo.assets import TEST_USD_ASSETS
 from kimodo.constraints import load_constraints_lst, save_constraints_lst
 from kimodo.exports.bvh import motion_to_bvh_bytes, save_motion_bvh
 from kimodo.exports.fbx import motion_to_fbx_bytes, save_motion_fbx
@@ -3307,9 +3308,18 @@ def create_gui(
             )
             client.camera.fov = np.deg2rad(gui_camera_fov_slider.value)
         with client.gui.add_folder("USD 3D", expand_by_default=False):
+            usd_asset_options = ["Пользовательский путь", *TEST_USD_ASSETS.keys()]
+            default_usd_label = next(iter(TEST_USD_ASSETS), "Пользовательский путь")
+            default_usd_path = str(TEST_USD_ASSETS[default_usd_label]) if TEST_USD_ASSETS else "asset.usd"
+            gui_usd_asset_dropdown = client.gui.add_dropdown(
+                "Тестовая модель",
+                options=usd_asset_options,
+                initial_value=default_usd_label,
+                hint="Встроенные тестовые USD-модели для проверки масштаба и загрузчика.",
+            )
             gui_usd_path_text = client.gui.add_text(
                 "Путь к файлу",
-                initial_value="asset.usd",
+                initial_value=default_usd_path,
                 hint="Поддерживаются .usd, .usda, .usdc, .usdz",
             )
             gui_usd_scale_slider = client.gui.add_slider(
@@ -3338,6 +3348,12 @@ def create_gui(
                 hint="Очистить загруженный USD 3D.",
                 icon=viser.Icon.CUBE_OFF,
             )
+
+            @gui_usd_asset_dropdown.on_update
+            def _(_event: viser.GuiEvent) -> None:
+                selected = str(gui_usd_asset_dropdown.value)
+                if selected in TEST_USD_ASSETS:
+                    gui_usd_path_text.value = str(TEST_USD_ASSETS[selected])
 
             @gui_load_usd_button.on_click
             def _(event: viser.GuiEvent) -> None:
